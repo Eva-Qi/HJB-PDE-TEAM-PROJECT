@@ -128,10 +128,8 @@ def almgren_chriss_closed_form(
     The optimal trade list (shares per step) is:
         n_k = x*(t_{k-1}) - x*(t_k)
 
-    Expected cost (Almgren-Chriss Eq. 20):
-        E[C] = 0.5 * gamma * X0^2
-               + eta * X0^2 * kappa * cosh(kappa*T) / sinh(kappa*T)
-               (simplified for linear impact)
+    Expected cost is computed via direct summation of the discrete
+    permanent and temporary impact costs along the optimal trajectory.
 
     Parameters
     ----------
@@ -163,13 +161,6 @@ def almgren_chriss_closed_form(
     # Optimal inventory trajectory
     sinh_kT = np.sinh(kappa * T)
     x_trajectory = X0 * np.sinh(kappa * (T - t_grid)) / sinh_kT
-
-    # Expected cost (Almgren-Chriss Eq. 20 for linear impact)
-    # E[C] = 0.5 * gamma * X0^2 + eta * kappa * coth(kappa*T) * X0^2 / T
-    # More precisely from the paper:
-    # E[C] = 0.5*gamma*X0^2 + eta * (X0^2 / T) * kappa*T * cosh(kappa*T) / sinh(kappa*T)
-    # Simplified: the permanent part + temporary part
-    cosh_kT = np.cosh(kappa * T)
 
     # Trade list
     n_k = x_trajectory[:-1] - x_trajectory[1:]  # shares traded each step

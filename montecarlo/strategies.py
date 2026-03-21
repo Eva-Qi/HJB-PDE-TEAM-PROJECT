@@ -45,8 +45,10 @@ def vwap_trajectory(params: ACParams) -> np.ndarray:
     if params.volume_profile is not None:
         weights = params.volume_profile
     else:
-        # Map each time step to an hour and use the volume profile
-        # Assume execution starts at hour 0, steps map proportionally to 24h
+        # Map each time step to an hour and use the volume profile.
+        # Assumes execution window spans a full 24h cycle starting at hour 0.
+        # For N < 24, multiple hours collapse into single steps; for N >> 24,
+        # multiple steps share the same hourly weight.
         hours_per_step = 24.0 / N
         weights = np.zeros(N)
         for k in range(N):

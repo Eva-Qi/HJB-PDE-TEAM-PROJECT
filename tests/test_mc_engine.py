@@ -128,7 +128,58 @@ class TestExecutionSimulation:
 
         # Antithetic should give lower variance (not guaranteed but very likely)
         # Use a generous check — just verify it's not much worse
-        assert var_anti < var_plain * 1.5, (
-            f"Antithetic variance ({var_anti:.2f}) should not be much larger "
-            f"than plain ({var_plain:.2f})"
+        assert var_anti < var_plain * 1.1, (
+            f"Antithetic variance ({var_anti:.6e}) should be less than "
+            f"plain ({var_plain:.6e})"
         )
+
+
+class TestControlVariate:
+    """Test control variate variance reduction (previously untested)."""
+
+    def test_control_variate_preserves_mean(self):
+        """CV should not significantly change the mean estimate."""
+        x_opt = optimal_trajectory(DEFAULT_PARAMS)
+        x_twap = twap_trajectory(DEFAULT_PARAMS)
+
+        _, costs_plain = simulate_execution(
+            DEFAULT_PARAMS, x_opt, n_paths=10000, seed=42
+        )
+        _, costs_cv = simulate_execution_with_control_variate(
+            DEFAULT_PARAMS, x_opt, x_twap, n_paths=10000, seed=42
+        )
+
+        rel_diff = abs(np.mean(costs_cv) - np.mean(costs_plain)) / abs(np.mean(costs_plain))
+        assert rel_diff < 0.1, f"CV mean shifted by {rel_diff*100:.1f}%"
+
+    def test_control_variate_reduces_variance(self):
+        """CV should reduce variance compared to plain MC."""
+        x_opt = optimal_trajectory(DEFAULT_PARAMS)
+        x_twap = twap_trajectory(DEFAULT_PARAMS)
+
+        _, costs_plain = simulate_execution(
+            DEFAULT_PARAMS, x_opt, n_paths=10000, seed=42
+        )
+        _, costs_cv = simulate_execution_with_control_variate(
+            DEFAULT_PARAMS, x_opt, x_twap, n_paths=10000, seed=42
+        )
+
+        assert np.var(costs_cv) < np.var(costs_plain), (
+            f"CV variance ({np.var(costs_cv):.2f}) should be less than "
+            f"plain ({np.var(costs_plain):.2f})"
+        )
+
+
+class TestLogNormalGBM:
+    """Test that log-normal GBM guarantees positive prices."""
+
+    def test_high_vol_positive_prices(self):
+        """Even with sigma=1.0, all prices must be positive."""
+        from shared.params import ACParams
+        high_vol = ACParams(
+            S0=50.0, sigma=1.0, mu=0.0, X0=1e6,
+            T=1.0, N=50, gamma=2.5e-7, eta=2.5e-6,
+            alpha=1.0, lam=1e-3,
+        )
+        S = simulate_gbm_paths(high_vol, n_paths=5000, seed=42)
+        assert np.all(S > 0), "Log-normal GBM must produce positive prices"

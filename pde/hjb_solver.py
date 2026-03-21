@@ -76,7 +76,7 @@ def _solve_hjb_riccati(
     """Solve HJB via Riccati ODE reduction (linear impact, alpha=1).
 
     For linear impact, V(x,t) = alpha(t)*x^2 where alpha satisfies:
-        d(alpha)/d(tau) = -alpha^2/eta + 0.5*lam*sigma^2
+        d(alpha)/d(tau) = -alpha^2/eta + lam*sigma^2
     with alpha(tau=0) = terminal_penalty, tau = T - t (time remaining).
 
     This is numerically stable regardless of penalty size.
@@ -90,7 +90,7 @@ def _solve_hjb_riccati(
     x = grid.x_grid
 
     # Solve Riccati ODE backward: tau = T - t, alpha(tau=0) = penalty
-    # d(alpha)/d(tau) = -alpha^2/eta + 0.5*lam*sigma^2
+    # d(alpha)/d(tau) = -alpha^2/eta + lam*sigma^2
     def riccati_rhs(tau, alpha):
         return -alpha**2 / eta + lam * sigma**2
 
@@ -106,6 +106,7 @@ def _solve_hjb_riccati(
         rtol=1e-10,
         atol=1e-12,
     )
+    assert sol.success, f"Riccati ODE solve_ivp failed: {sol.message}"
 
     # alpha_values[j] = alpha at time t_grid[j]
     # sol.y[0] is indexed by tau; we need to reverse to get time ordering
@@ -135,9 +136,11 @@ def _solve_hjb_fd(
     """Solve HJB via explicit finite differences (general nonlinear impact).
 
     For nonlinear temporary impact h(v) = eta*|v|^alpha*sign(v), the
-    optimal v* must be found numerically at each grid point.
+    optimal v* must be found numerically at each grid point via grid search.
 
-    Uses normalized state variable u = x/X0 ∈ [0,1] for stability.
+    The Hamiltonian is:
+        H(v) = eta*|v|^(alpha+1) - v*V_x + lam*sigma^2*x^2
+    Note: eta*|v|^alpha*v = eta*|v|^(alpha+1) since v >= 0 for liquidation.
     """
     grid = build_grid(params, M)
     N = grid.N
@@ -155,37 +158,35 @@ def _solve_hjb_fd(
     # Terminal condition
     V[:, N] = terminal_penalty * x**2
 
-    # Maximum feasible trading rate (can't sell more than remaining inventory)
-    v_max_global = params.X0 / dt
+    n_candidates = 100  # grid search resolution for optimal v*
+
+    def _find_optimal_v(V_x_val, x_i, eta, alpha_pow, lam, sigma, dt, n_cand):
+        """Find v* minimizing Hamiltonian via grid search."""
+        v_max = x_i / dt  # can't sell more than remaining inventory
+        v_candidates = np.linspace(0, v_max, n_cand)
+        # H(v) = eta*|v|^alpha*v - v*V_x + lam*sigma^2*x^2
+        # Note: eta*|v|^alpha*v = eta*|v|^(alpha+1) for v >= 0
+        H_vals = (
+            eta * np.abs(v_candidates) ** alpha_pow * v_candidates
+            - v_candidates * V_x_val
+            + lam * sigma**2 * x_i**2
+        )
+        best_idx = np.argmin(H_vals)
+        return v_candidates[best_idx], H_vals[best_idx]
 
     for j in range(N, 0, -1):
         for i in range(1, M + 1):
             x_i = x[i]
 
-            # V_x via central differences (one-sided at boundaries)
+            # V_x via central differences (one-sided at boundary)
             if i < M:
                 V_x = (V[i + 1, j] - V[i - 1, j]) / (2.0 * dx)
             else:
                 V_x = (V[i, j] - V[i - 1, j]) / dx
 
-            # Maximum feasible rate at this point
-            v_max = x_i / dt
-
-            # Search for optimal v* over a grid of candidate values
-            n_candidates = 50
-            v_candidates = np.linspace(0, v_max, n_candidates)
-
-            # Hamiltonian: H(v) = eta*|v|^alpha*v - v*V_x + 0.5*lam*sigma^2*x^2
-            H_vals = (
-                eta * np.abs(v_candidates) ** alpha_pow * v_candidates
-                - v_candidates * V_x
-                + lam * sigma**2 * x_i**2
+            v_opt, H_min = _find_optimal_v(
+                V_x, x_i, eta, alpha_pow, lam, sigma, dt, n_candidates
             )
-
-            best_idx = np.argmin(H_vals)
-            v_opt = v_candidates[best_idx]
-            H_min = H_vals[best_idx]
-
             v_star[i, j] = v_opt
             V[i, j - 1] = V[i, j] + dt * H_min
 
@@ -200,14 +201,9 @@ def _solve_hjb_fd(
             V_x = (V[i + 1, 0] - V[i - 1, 0]) / (2.0 * dx)
         else:
             V_x = (V[i, 0] - V[i - 1, 0]) / dx
-        v_max = x_i / dt
-        v_candidates = np.linspace(0, v_max, 50)
-        H_vals = (
-            eta * np.abs(v_candidates) ** alpha_pow * v_candidates
-            - v_candidates * V_x
-            + lam * sigma**2 * x_i**2
+        v_star[i, 0], _ = _find_optimal_v(
+            V_x, x_i, eta, alpha_pow, lam, sigma, dt, n_candidates
         )
-        v_star[i, 0] = v_candidates[np.argmin(H_vals)]
 
     return grid, V, v_star
 

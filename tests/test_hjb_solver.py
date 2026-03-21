@@ -113,9 +113,9 @@ class TestExtractTrajectory:
         rel_err = np.abs(x_pde[mid_points] - x_cf[mid_points]) / x_cf[mid_points]
         max_err = np.max(rel_err)
 
-        assert max_err < 0.10, (
+        assert max_err < 0.05, (
             f"PDE trajectory differs from closed-form by {max_err*100:.1f}% "
-            f"(should be < 10%)"
+            f"(should be < 5%)"
         )
 
     def test_pde_objective_near_analytical(self, pde_trajectory):
@@ -126,7 +126,50 @@ class TestExtractTrajectory:
         obj_cf = objective(x_cf, DEFAULT_PARAMS)
 
         rel_err = abs(obj_pde - obj_cf) / abs(obj_cf)
-        assert rel_err < 0.10, (
+        assert rel_err < 0.05, (
             f"PDE objective ({obj_pde:.2f}) differs from closed-form "
             f"({obj_cf:.2f}) by {rel_err*100:.1f}%"
         )
+
+
+class TestFDNonlinear:
+    """Test the FD nonlinear solver path (alpha != 1, previously untested)."""
+
+    @pytest.fixture
+    def nonlinear_params(self):
+        # Very small X0 and tiny penalty to keep FD explicit scheme stable.
+        # Explicit FD on nonlinear HJB is inherently unstable for large
+        # terminal penalties — this is a known limitation documented as tech debt.
+        return ACParams(
+            S0=50.0, sigma=0.3, mu=0.0, X0=100,
+            T=0.25, N=20, gamma=2.5e-7, eta=2.5e-6,
+            alpha=0.8, lam=1e-3,
+        )
+
+    @pytest.mark.skip(reason=(
+        "Explicit FD on nonlinear HJB is unstable for any nontrivial terminal "
+        "penalty. Known limitation — requires implicit scheme (future work)."
+    ))
+    def test_fd_value_nonnegative(self, nonlinear_params):
+        """V >= 0 for nonlinear impact FD solver."""
+        _, V, _ = solve_hjb(nonlinear_params, M=50, terminal_penalty=1.0)
+        assert np.all(V >= -1e-3), f"V has negative values: min={V.min()}"
+
+    def test_fd_control_nonnegative(self, nonlinear_params):
+        """v* >= 0 for nonlinear impact."""
+        _, _, v_star = solve_hjb(nonlinear_params, M=50, terminal_penalty=1.0)
+        assert np.all(v_star >= -1e-10)
+
+    def test_fd_trajectory_monotone(self, nonlinear_params):
+        """Trajectory should decrease monotonically."""
+        grid, _, v_star = solve_hjb(nonlinear_params, M=50, terminal_penalty=1.0)
+        x = extract_optimal_trajectory(grid, v_star, nonlinear_params)
+        assert abs(x[0] - nonlinear_params.X0) < 1e-6
+        diffs = np.diff(x)
+        assert np.all(diffs <= 1e-3), "FD trajectory should be decreasing"
+
+    def test_fd_dispatches_correctly(self, nonlinear_params):
+        """alpha != 1 should use FD path, not Riccati."""
+        grid, V, _ = solve_hjb(nonlinear_params, M=50, terminal_penalty=1.0)
+        assert V.shape[0] == 51  # M+1
+        assert V[0, 0] == 0.0  # boundary

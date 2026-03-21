@@ -35,8 +35,8 @@ def simulate_gbm_paths(
 ) -> np.ndarray:
     """Simulate GBM price paths (without impact — pure price dynamics).
 
-    Uses Euler-Maruyama:
-        S_{k+1} = S_k * (1 + mu*dt + sigma*sqrt(dt)*Z_k)
+    Uses exact log-normal discretization:
+        S_{k+1} = S_k * exp((mu - 0.5*sigma^2)*dt + sigma*sqrt(dt)*Z_k)
 
     Parameters
     ----------
@@ -69,8 +69,10 @@ def simulate_gbm_paths(
     S = np.zeros((actual_paths, N + 1))
     S[:, 0] = params.S0
 
+    # Exact log-normal simulation (guarantees positive prices)
+    drift = (params.mu - 0.5 * params.sigma**2) * dt
     for k in range(N):
-        S[:, k + 1] = S[:, k] * (1.0 + params.mu * dt + params.sigma * sqrt_dt * Z[:, k])
+        S[:, k + 1] = S[:, k] * np.exp(drift + params.sigma * sqrt_dt * Z[:, k])
 
     return S
 
@@ -146,9 +148,10 @@ def simulate_execution(
         # h_k * n_k is the temporary impact cost
         costs += n_k[k] * (params.S0 - S[:, k]) + h_k[k] * n_k[k]
 
-        # Price evolution: GBM + permanent impact from this trade
+        # Price evolution: exact log-normal GBM + permanent impact
+        drift = (params.mu - 0.5 * params.sigma**2) * dt
         S[:, k + 1] = (
-            S[:, k] * (1.0 + params.mu * dt + params.sigma * sqrt_dt * Z[:, k])
+            S[:, k] * np.exp(drift + params.sigma * sqrt_dt * Z[:, k])
             - params.gamma * n_k[k]
         )
 
@@ -191,7 +194,7 @@ def simulate_execution_with_control_variate(
     from shared.cost_model import execution_cost
 
     # Simulate both strategies with the SAME random seed
-    _, costs_strategy = simulate_execution(
+    price_paths, costs_strategy = simulate_execution(
         params, trajectory_x, n_paths, seed, antithetic=True
     )
     _, costs_twap = simulate_execution(
@@ -209,8 +212,4 @@ def simulate_execution_with_control_variate(
     # Adjusted costs
     costs_cv = costs_strategy - beta * (costs_twap - E_twap)
 
-    # Return price paths from main strategy (re-simulate for paths)
-    price_paths, _ = simulate_execution(
-        params, trajectory_x, n_paths, seed, antithetic=True
-    )
     return price_paths, costs_cv
