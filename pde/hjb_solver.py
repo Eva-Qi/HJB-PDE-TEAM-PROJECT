@@ -133,14 +133,24 @@ def _solve_hjb_fd(
     M: int,
     terminal_penalty: float,
 ) -> tuple[ExecutionGrid, np.ndarray, np.ndarray]:
-    """Solve HJB via explicit finite differences (general nonlinear impact).
+    """Solve HJB via policy iteration / Howard's algorithm (general nonlinear impact).
 
-    For nonlinear temporary impact h(v) = eta*|v|^alpha*sign(v), the
-    optimal v* must be found numerically at each grid point via grid search.
+    For nonlinear temporary impact h(v) = eta*|v|^alpha*sign(v), the HJB is:
 
-    The Hamiltonian is:
-        H(v) = eta*|v|^(alpha+1) - v*V_x + lam*sigma^2*x^2
-    Note: eta*|v|^alpha*v = eta*|v|^(alpha+1) since v >= 0 for liquidation.
+        V_t + min_v { eta*|v|^(alpha+1) + lam*sigma^2*x^2 - v*V_x } = 0
+
+    Policy iteration alternates between:
+      1. Policy evaluation: for fixed v*, solve the LINEAR PDE
+         V_t + eta*|v*|^(alpha+1) + lam*sigma^2*x^2 - v*V_x = 0
+         backward in time using implicit Euler with upwind differencing.
+      2. Policy improvement: update v* by minimizing the Hamiltonian given V.
+         FOC: v* = (V_x / (eta*(alpha+1)))^(1/alpha) for v >= 0, V_x > 0.
+
+    Implicit Euler with upwind differencing produces a diagonally dominant
+    tridiagonal system (diagonal >= 1 + dt*v/dx > 0), guaranteeing unconditional
+    stability and non-singularity regardless of dt, penalty size, or alpha.
+
+    Convergence is typically quadratic (Howard 1960).
     """
     grid = build_grid(params, M)
     N = grid.N
@@ -148,9 +158,12 @@ def _solve_hjb_fd(
     dx = grid.dx
     x = grid.x_grid
     eta = params.eta
-    alpha_pow = params.alpha
+    ap = params.alpha  # alpha exponent
     lam = params.lam
     sigma = params.sigma
+
+    # We solve for unknowns at indices 1..M (i=0 is boundary V=0)
+    n_int = M
 
     V = np.zeros((M + 1, N + 1))
     v_star = np.zeros((M + 1, N + 1))
@@ -158,52 +171,103 @@ def _solve_hjb_fd(
     # Terminal condition
     V[:, N] = terminal_penalty * x**2
 
-    n_candidates = 100  # grid search resolution for optimal v*
+    # --- Initialize policy: TWAP-like v*(x, t) = x / T ---
+    for j in range(N + 1):
+        v_star[:, j] = x / params.T
+    v_star[0, :] = 0.0
 
-    def _find_optimal_v(V_x_val, x_i, eta, alpha_pow, lam, sigma, dt, n_cand):
-        """Find v* minimizing Hamiltonian via grid search."""
-        v_max = x_i / dt  # can't sell more than remaining inventory
-        v_candidates = np.linspace(0, v_max, n_cand)
-        # H(v) = eta*|v|^alpha*v - v*V_x + lam*sigma^2*x^2
-        # Note: eta*|v|^alpha*v = eta*|v|^(alpha+1) for v >= 0
-        H_vals = (
-            eta * np.abs(v_candidates) ** alpha_pow * v_candidates
-            - v_candidates * V_x_val
-            + lam * sigma**2 * x_i**2
-        )
-        best_idx = np.argmin(H_vals)
-        return v_candidates[best_idx], H_vals[best_idx]
+    # --- Helper: compute V_x using backward (upwind) differences ---
+    def compute_Vx(V_col):
+        """dV/dx via backward differences at indices 1..M.
 
-    for j in range(N, 0, -1):
-        for i in range(1, M + 1):
-            x_i = x[i]
+        Upwind scheme for v >= 0: information flows from higher to lower x.
+        """
+        Vx = np.zeros(M + 1)
+        Vx[1:M + 1] = (V_col[1:M + 1] - V_col[0:M]) / dx
+        return Vx
 
-            # V_x via central differences (one-sided at boundary)
-            if i < M:
-                V_x = (V[i + 1, j] - V[i - 1, j]) / (2.0 * dx)
-            else:
-                V_x = (V[i, j] - V[i - 1, j]) / dx
+    # --- Helper: optimal control from V_x ---
+    def optimal_control(Vx, x_arr):
+        """v* = (V_x / (eta*(alpha+1)))^(1/alpha), v >= 0.
 
-            v_opt, H_min = _find_optimal_v(
-                V_x, x_i, eta, alpha_pow, lam, sigma, dt, n_candidates
-            )
-            v_star[i, j] = v_opt
-            V[i, j - 1] = V[i, j] + dt * H_min
+        From FOC of H(v) = eta*v^(alpha+1) - v*V_x:
+            dH/dv = eta*(alpha+1)*v^alpha - V_x = 0
+        """
+        v_opt = np.zeros_like(Vx)
+        pos = Vx > 0
+        v_opt[pos] = (Vx[pos] / (eta * (ap + 1.0))) ** (1.0 / ap)
+        # Cap at x/dt — cannot sell more than remaining inventory per step
+        v_max = np.maximum(x_arr / dt, 0.0)
+        v_opt = np.minimum(v_opt, v_max)
+        v_opt = np.maximum(v_opt, 0.0)
+        return v_opt
 
-        # Boundary
-        V[0, j - 1] = 0.0
-        v_star[0, j] = 0.0
+    # --- Policy iteration (Howard's algorithm) ---
+    max_policy_iter = 50
+    tol_policy = 1e-8
 
-    # v_star at t=0
-    for i in range(1, M + 1):
-        x_i = x[i]
-        if i < M:
-            V_x = (V[i + 1, 0] - V[i - 1, 0]) / (2.0 * dx)
+    for iteration in range(max_policy_iter):
+        V_old = V.copy()
+
+        # --- Policy evaluation: implicit Euler backward sweep ---
+        #
+        # PDE: V_t + source(x,t) - v*(x,t)*V_x = 0
+        #   where source = eta*|v*|^(alpha+1) + lam*sigma^2*x^2
+        #
+        # Backward step from t_{j+1} to t_j (implicit in V^j):
+        #   (V^j - V^{j+1}) / dt = v*(x, t_j) * V_x^j - source(x, t_j)
+        #
+        # With upwind backward difference V_x^j_i = (V^j_i - V^j_{i-1})/dx:
+        #   V^j_i - V^{j+1}_i = dt * v_i * (V^j_i - V^j_{i-1})/dx - dt * src_i
+        #
+        # Rearranging:
+        #   V^j_i * (1 + dt*v_i/dx) - V^j_{i-1} * (dt*v_i/dx) = V^{j+1}_i - dt*src_i
+        #
+        # This is a lower-bidiagonal system (trivially solved by forward substitution)
+        # with diagonal = 1 + dt*v_i/dx >= 1 (always positive, always non-singular).
+
+        V[:, N] = terminal_penalty * x**2  # re-apply terminal
+
+        for j in range(N - 1, -1, -1):
+            # Policy and source at time step j (interior points 1..M)
+            v_j = v_star[1:M + 1, j]  # shape (M,)
+            src_j = eta * np.abs(v_j) ** (ap + 1.0) + lam * sigma**2 * x[1:M + 1]**2
+
+            # Courant numbers (always >= 0)
+            c = dt * v_j / dx  # shape (M,)
+
+            # RHS: V^{j+1} at interior - dt * source
+            rhs = V[1:M + 1, j + 1] - dt * src_j
+
+            # Forward substitution for lower-bidiagonal system:
+            #   (1 + c_i) * V_i - c_i * V_{i-1} = rhs_i
+            # with V_0 = 0 (boundary)
+            V_prev = 0.0  # V[0, j] = 0 boundary
+            for i in range(n_int):
+                V_val = (rhs[i] + c[i] * V_prev) / (1.0 + c[i])
+                V[i + 1, j] = V_val
+                V_prev = V_val
+
+            V[0, j] = 0.0  # boundary
+
+        # --- Policy improvement: update v* from new V ---
+        v_star_new = np.zeros_like(v_star)
+        for j in range(N + 1):
+            Vx = compute_Vx(V[:, j])
+            v_star_new[:, j] = optimal_control(Vx, x)
+        v_star_new[0, :] = 0.0
+
+        # Check convergence (sup-norm relative change in V)
+        V_norm = np.max(np.abs(V))
+        if V_norm > 0:
+            rel_change = np.max(np.abs(V - V_old)) / V_norm
         else:
-            V_x = (V[i, 0] - V[i - 1, 0]) / dx
-        v_star[i, 0], _ = _find_optimal_v(
-            V_x, x_i, eta, alpha_pow, lam, sigma, dt, n_candidates
-        )
+            rel_change = 0.0
+
+        v_star = v_star_new
+
+        if rel_change < tol_policy:
+            break
 
     return grid, V, v_star
 

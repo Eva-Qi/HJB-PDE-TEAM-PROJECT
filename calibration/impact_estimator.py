@@ -127,11 +127,24 @@ def estimate_realized_vol(
     float
         Realized volatility (annualized if requested).
     """
-    raise NotImplementedError(
-        "P1: implement realized vol estimation. "
-        "log_returns = np.diff(np.log(prices)); "
-        "vol = std(log_returns) * sqrt(annualization_factor)"
-    )
+    prices = np.asarray(prices, dtype=np.float64)
+    if len(prices) < 2:
+        raise ValueError("Need at least 2 prices to compute volatility")
+
+    # Filter out zeros/NaNs to avoid log issues
+    prices = prices[prices > 0]
+    prices = prices[~np.isnan(prices)]
+
+    log_returns = np.diff(np.log(prices))
+    vol = np.std(log_returns, ddof=1)
+
+    if annualize:
+        # seconds_per_year = 365.25 * 24 * 3600 (crypto trades 24/7)
+        seconds_per_year = 365.25 * 24 * 3600
+        annualization_factor = seconds_per_year / freq_seconds
+        vol *= np.sqrt(annualization_factor)
+
+    return float(vol)
 
 
 def calibrated_params(

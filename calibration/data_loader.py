@@ -18,13 +18,25 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+# Column names for Binance aggTrades CSVs (no header row in the raw files)
+AGG_TRADES_COLUMNS = [
+    "agg_trade_id",
+    "price",
+    "quantity",
+    "first_trade_id",
+    "last_trade_id",
+    "timestamp",
+    "is_buyer_maker",
+    "is_best_match",
+]
+
 
 def load_trades(
     path: str | Path,
     start: Optional[str] = None,
     end: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Load trade data from Binance CSV.
+    """Load trade data from Binance aggTrades CSV(s).
 
     Expected columns: timestamp, price, qty, is_buyer_maker
     Returns DataFrame with columns: timestamp, price, quantity, side
@@ -33,14 +45,69 @@ def load_trades(
     Parameters
     ----------
     path : str or Path
-        Path to CSV file or directory of CSVs.
+        Path to a single CSV file, or a directory containing multiple
+        BTCUSDT-aggTrades-*.csv files. If a directory, all matching
+        CSVs are loaded and concatenated.
     start, end : str, optional
-        ISO datetime strings for filtering.
+        ISO datetime strings for filtering (e.g. '2026-03-15 00:00:00').
     """
-    raise NotImplementedError(
-        "P1: implement trade data loading. "
-        "See data.binance.vision for BTCUSDT aggTrades format."
+    path = Path(path)
+
+    if path.is_dir():
+        csv_files = sorted(path.glob("*-aggTrades-*.csv"))
+        if not csv_files:
+            raise FileNotFoundError(
+                f"No aggTrades CSV files found in {path}. "
+                "Run `python -m calibration.download_binance` first."
+            )
+        dfs = [_load_single_csv(f) for f in csv_files]
+        df = pd.concat(dfs, ignore_index=True)
+    else:
+        df = _load_single_csv(path)
+
+    # Sort by timestamp
+    df = df.sort_values("timestamp").reset_index(drop=True)
+
+    # Filter by time range if specified
+    if start is not None:
+        start_ts = pd.Timestamp(start)
+        df = df[df["timestamp"] >= start_ts]
+    if end is not None:
+        end_ts = pd.Timestamp(end)
+        df = df[df["timestamp"] <= end_ts]
+
+    return df.reset_index(drop=True)
+
+
+def _load_single_csv(filepath: Path) -> pd.DataFrame:
+    """Load a single Binance aggTrades CSV and normalize columns.
+
+    Returns DataFrame with columns: timestamp, price, quantity, side.
+    """
+    df = pd.read_csv(
+        filepath,
+        header=None,
+        names=AGG_TRADES_COLUMNS,
+        dtype={
+            "agg_trade_id": np.int64,
+            "price": np.float64,
+            "quantity": np.float64,
+            "first_trade_id": np.int64,
+            "last_trade_id": np.int64,
+            "timestamp": np.int64,
+            "is_buyer_maker": bool,
+            "is_best_match": bool,
+        },
     )
+
+    # Convert epoch milliseconds to pandas Timestamp
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+
+    # Side convention: is_buyer_maker=True means taker is selling
+    # side = +1 for buyer-initiated (taker buy), -1 for seller-initiated
+    df["side"] = np.where(df["is_buyer_maker"], -1, 1)
+
+    return df[["timestamp", "price", "quantity", "side"]]
 
 
 def load_orderbook_snapshots(
@@ -66,44 +133,41 @@ def load_orderbook_snapshots(
     )
 
 
-def compute_mid_prices(snapshots: pd.DataFrame) -> pd.Series:
-    """Extract mid prices from order book snapshots.
+def compute_mid_prices(
+    trades: pd.DataFrame,
+    freq: str = "5min",
+) -> pd.DataFrame:
+    """Compute mid-price proxy from trade data by resampling.
 
-    mid = (best_bid + best_ask) / 2
-    """
-    raise NotImplementedError("P1: extract mid prices from snapshots.")
-
-
-def walk_the_book_slippage(
-    snapshots: pd.DataFrame,
-    quantities: np.ndarray,
-    side: str = "sell",
-    fill_ratio: float = 0.5,
-) -> np.ndarray:
-    """Estimate slippage by walking the order book for various quantities.
-
-    This is a simplified version of QC_Trade_Platform's WalkTheBook._walk_levels().
-    For each (snapshot, quantity) pair, walks through book levels consuming
-    fill_ratio of each level's liquidity, computing VWAP slippage in bps.
+    Since we don't have order book data yet, we approximate mid price
+    as the VWAP within each time bucket. This is a reasonable proxy
+    for liquid instruments like BTCUSDT.
 
     Parameters
     ----------
-    snapshots : pd.DataFrame
-        Order book snapshots with bid/ask prices and quantities.
-    quantities : np.ndarray
-        Array of order sizes to simulate.
-    side : str
-        'buy' or 'sell'.
-    fill_ratio : float
-        Fraction of each level's liquidity assumed available (0.3-0.7).
+    trades : pd.DataFrame
+        Trade data with columns: timestamp, price, quantity.
+    freq : str
+        Resampling frequency (default: '5min').
 
     Returns
     -------
-    np.ndarray
-        Slippage in bps for each (snapshot, quantity) combination.
-        Shape: (len(snapshots), len(quantities)).
+    pd.DataFrame
+        DataFrame with columns: timestamp, mid_price, volume.
+        Indexed by time bucket.
     """
-    raise NotImplementedError(
-        "P1: implement walk-the-book slippage estimation. "
-        "Reference: QC_Trade_Platform/src/orderbook/walk_the_book.py _walk_levels()"
-    )
+    df = trades.set_index("timestamp")
+
+    # VWAP per bucket as mid-price proxy
+    notional = (df["price"] * df["quantity"]).resample(freq).sum()
+    volume = df["quantity"].resample(freq).sum()
+    vwap = notional / volume
+
+    result = pd.DataFrame({
+        "mid_price": vwap,
+        "volume": volume,
+    }).dropna()
+
+    result = result.reset_index()
+    result.rename(columns={"timestamp": "timestamp"}, inplace=True)
+    return result

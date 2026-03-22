@@ -137,32 +137,28 @@ class TestFDNonlinear:
 
     @pytest.fixture
     def nonlinear_params(self):
-        # Very small X0 and tiny penalty to keep FD explicit scheme stable.
-        # Explicit FD on nonlinear HJB is inherently unstable for large
-        # terminal penalties — this is a known limitation documented as tech debt.
+        # Parameters for the policy iteration (implicit) FD solver.
+        # The implicit scheme is unconditionally stable, so we can use
+        # realistic parameters unlike the old explicit solver.
         return ACParams(
-            S0=50.0, sigma=0.3, mu=0.0, X0=100,
+            S0=50.0, sigma=0.3, mu=0.0, X0=10_000,
             T=0.25, N=20, gamma=2.5e-7, eta=2.5e-6,
             alpha=0.8, lam=1e-3,
         )
 
-    @pytest.mark.skip(reason=(
-        "Explicit FD on nonlinear HJB is unstable for any nontrivial terminal "
-        "penalty. Known limitation — requires implicit scheme (future work)."
-    ))
     def test_fd_value_nonnegative(self, nonlinear_params):
-        """V >= 0 for nonlinear impact FD solver."""
-        _, V, _ = solve_hjb(nonlinear_params, M=50, terminal_penalty=1.0)
+        """V >= 0 for nonlinear impact FD solver (policy iteration)."""
+        _, V, _ = solve_hjb(nonlinear_params, M=50)
         assert np.all(V >= -1e-3), f"V has negative values: min={V.min()}"
 
     def test_fd_control_nonnegative(self, nonlinear_params):
         """v* >= 0 for nonlinear impact."""
-        _, _, v_star = solve_hjb(nonlinear_params, M=50, terminal_penalty=1.0)
+        _, _, v_star = solve_hjb(nonlinear_params, M=50)
         assert np.all(v_star >= -1e-10)
 
     def test_fd_trajectory_monotone(self, nonlinear_params):
         """Trajectory should decrease monotonically."""
-        grid, _, v_star = solve_hjb(nonlinear_params, M=50, terminal_penalty=1.0)
+        grid, _, v_star = solve_hjb(nonlinear_params, M=50)
         x = extract_optimal_trajectory(grid, v_star, nonlinear_params)
         assert abs(x[0] - nonlinear_params.X0) < 1e-6
         diffs = np.diff(x)
@@ -170,6 +166,6 @@ class TestFDNonlinear:
 
     def test_fd_dispatches_correctly(self, nonlinear_params):
         """alpha != 1 should use FD path, not Riccati."""
-        grid, V, _ = solve_hjb(nonlinear_params, M=50, terminal_penalty=1.0)
+        grid, V, _ = solve_hjb(nonlinear_params, M=50)
         assert V.shape[0] == 51  # M+1
         assert V[0, 0] == 0.0  # boundary
