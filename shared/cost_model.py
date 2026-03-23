@@ -103,7 +103,8 @@ def execution_risk(x: np.ndarray, params: ACParams) -> float:
     """
     dt = params.dt
     # Risk from holding inventory x_k during interval [t_k, t_{k+1}]
-    return float(params.sigma**2 * dt * np.sum(x[:-1] ** 2))
+    # Uses dollar volatility (S0 * sigma_pct) so risk is in dollar² units
+    return float(params.S0**2 * params.sigma**2 * dt * np.sum(x[:-1] ** 2))
 
 
 def objective(x: np.ndarray, params: ACParams) -> float:

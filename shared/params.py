@@ -87,13 +87,13 @@ class ACParams:
 
     @property
     def kappa(self) -> float:
-        """Urgency parameter: kappa = sqrt(lambda * sigma^2 / eta).
+        """Urgency parameter: kappa = sqrt(lambda * S0^2 * sigma^2 / eta).
 
-        Controls the shape of the optimal trajectory.
+        Uses dollar volatility (S0 * sigma_pct) so that risk is in dollar units.
         Large kappa → trade aggressively early (front-loaded).
         Small kappa → close to TWAP (uniform).
         """
-        return np.sqrt(self.lam * self.sigma**2 / self.eta)
+        return np.sqrt(self.lam * self.S0**2 * self.sigma**2 / self.eta)
 
 
 # Synthetic parameters giving kappa*T ≈ 1.5 — clearly front-loaded
@@ -109,8 +109,8 @@ DEFAULT_PARAMS = ACParams(
     gamma=2.5e-7,       # permanent impact
     eta=2.5e-6,         # temporary impact
     alpha=1.0,          # linear temporary impact
-    lam=1e-3,           # risk aversion
-    # kappa = sqrt(lam * sigma^2 / eta) ≈ 6.0
+    lam=4e-7,           # risk aversion (adjusted for S0² in kappa)
+    # kappa = sqrt(lam * S0^2 * sigma^2 / eta) = sqrt(4e-7 * 2500 * 0.09 / 2.5e-6) = 6.0
     # kappa * T = 6.0 * 0.25 = 1.5 → meaningful front-loading
 )
 

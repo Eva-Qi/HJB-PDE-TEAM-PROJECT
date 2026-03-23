@@ -2,16 +2,16 @@
 
 For the value function V(x, t) = min expected cost-to-go from state (x, t):
 
-    V_t + min_v { eta*v^2 + lam*sigma^2*x^2 - v*V_x } = 0
+    V_t + min_v { eta*v^2 + lam*S0^2*sigma^2*x^2 - v*V_x } = 0
 
 For LINEAR impact (alpha=1), V(x,t) = alpha(t)*x^2 where alpha(t) satisfies
 the Riccati ODE (stable, exact):
 
-    alpha'(t) = alpha(t)^2/eta - lam*sigma^2
+    alpha'(t) = alpha(t)^2/eta - lam*S0^2*sigma^2
     alpha(T) = terminal_penalty
 
 Analytical solution: alpha(t) = eta * kappa * coth(kappa*(T-t))
-where kappa = sqrt(lam*sigma^2/eta).
+where kappa = sqrt(lam*S0^2*sigma^2/eta).
 
 Optimal control: v*(x,t) = alpha(t)*x/eta = kappa*coth(kappa*(T-t))*x
 
@@ -76,7 +76,7 @@ def _solve_hjb_riccati(
     """Solve HJB via Riccati ODE reduction (linear impact, alpha=1).
 
     For linear impact, V(x,t) = alpha(t)*x^2 where alpha satisfies:
-        d(alpha)/d(tau) = -alpha^2/eta + lam*sigma^2
+        d(alpha)/d(tau) = -alpha^2/eta + lam*S0^2*sigma^2
     with alpha(tau=0) = terminal_penalty, tau = T - t (time remaining).
 
     This is numerically stable regardless of penalty size.
@@ -89,10 +89,11 @@ def _solve_hjb_riccati(
     N = grid.N
     x = grid.x_grid
 
+    S0 = params.S0
     # Solve Riccati ODE backward: tau = T - t, alpha(tau=0) = penalty
-    # d(alpha)/d(tau) = -alpha^2/eta + lam*sigma^2
+    # d(alpha)/d(tau) = -alpha^2/eta + lam*S0^2*sigma^2
     def riccati_rhs(tau, alpha):
-        return -alpha**2 / eta + lam * sigma**2
+        return -alpha**2 / eta + lam * S0**2 * sigma**2
 
     tau_span = (0.0, T)
     tau_eval = T - grid.t_grid[::-1]  # tau values corresponding to t_grid (reversed)
@@ -137,11 +138,11 @@ def _solve_hjb_fd(
 
     For nonlinear temporary impact h(v) = eta*|v|^alpha*sign(v), the HJB is:
 
-        V_t + min_v { eta*|v|^(alpha+1) + lam*sigma^2*x^2 - v*V_x } = 0
+        V_t + min_v { eta*|v|^(alpha+1) + lam*S0^2*sigma^2*x^2 - v*V_x } = 0
 
     Policy iteration alternates between:
       1. Policy evaluation: for fixed v*, solve the LINEAR PDE
-         V_t + eta*|v*|^(alpha+1) + lam*sigma^2*x^2 - v*V_x = 0
+         V_t + eta*|v*|^(alpha+1) + lam*S0^2*sigma^2*x^2 - v*V_x = 0
          backward in time using implicit Euler with upwind differencing.
       2. Policy improvement: update v* by minimizing the Hamiltonian given V.
          FOC: v* = (V_x / (eta*(alpha+1)))^(1/alpha) for v >= 0, V_x > 0.
@@ -212,7 +213,7 @@ def _solve_hjb_fd(
         # --- Policy evaluation: implicit Euler backward sweep ---
         #
         # PDE: V_t + source(x,t) - v*(x,t)*V_x = 0
-        #   where source = eta*|v*|^(alpha+1) + lam*sigma^2*x^2
+        #   where source = eta*|v*|^(alpha+1) + lam*S0^2*sigma^2*x^2
         #
         # Backward step from t_{j+1} to t_j (implicit in V^j):
         #   (V^j - V^{j+1}) / dt = v*(x, t_j) * V_x^j - source(x, t_j)
@@ -231,7 +232,7 @@ def _solve_hjb_fd(
         for j in range(N - 1, -1, -1):
             # Policy and source at time step j (interior points 1..M)
             v_j = v_star[1:M + 1, j]  # shape (M,)
-            src_j = eta * np.abs(v_j) ** (ap + 1.0) + lam * sigma**2 * x[1:M + 1]**2
+            src_j = eta * np.abs(v_j) ** (ap + 1.0) + lam * params.S0**2 * sigma**2 * x[1:M + 1]**2
 
             # Courant numbers (always >= 0)
             c = dt * v_j / dx  # shape (M,)
