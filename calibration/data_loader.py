@@ -100,8 +100,8 @@ def _load_single_csv(filepath: Path) -> pd.DataFrame:
         },
     )
 
-    # Convert epoch milliseconds to pandas Timestamp
-    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+    # Binance aggTrades use microsecond timestamps (16 digits, not 13)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="us", utc=True)
 
     # Side convention: is_buyer_maker=True means taker is selling
     # side = +1 for buyer-initiated (taker buy), -1 for seller-initiated
