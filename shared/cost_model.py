@@ -85,9 +85,9 @@ def execution_cost(x: np.ndarray, params: ACParams) -> float:
 def execution_risk(x: np.ndarray, params: ACParams) -> float:
     """Execution risk (variance of cost) for a given trajectory.
 
-    Var[cost] = sigma^2 * sum_{k=0}^{N-1} tau * x_k^2
+    Var[cost] = S0^2 * sigma^2 * sum_{k=0}^{N-1} tau * x_k^2
 
-    Holding inventory x_k exposes us to price variance sigma^2 * tau
+    Holding inventory x_k exposes us to dollar variance (S0*sigma)^2 * tau
     at each step. Total variance is the sum over all steps.
 
     Parameters

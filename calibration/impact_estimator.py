@@ -257,19 +257,22 @@ def calibrated_params(
     signed_flows = (trades_sorted["quantity"] * trades_sorted["side"]).values[1:]
     gamma = estimate_kyle_lambda(delta_prices, signed_flows)
     if gamma is None or gamma <= 0:
-        gamma = 1e-4  # fallback if estimation fails
+        print(f"WARNING: Kyle's lambda estimation failed (gamma={gamma}), using fallback 1e-4")
+        gamma = 1e-4
 
     # 4. Temporary impact → (eta, alpha)
     try:
         eta, alpha = estimate_temporary_impact_from_trades(trades, n_buckets=20)
         # Sanity check: alpha should be in [0.3, 1.5]
         if alpha < 0.3 or alpha > 1.5:
-            eta, alpha = 1e-3, 0.6  # fallback to literature values
-    except (ValueError, Exception):
+            print(f"WARNING: estimated alpha={alpha:.3f} out of range [0.3, 1.5], using literature fallback (alpha=0.6)")
+            eta, alpha = 1e-3, 0.6
+    except ValueError as e:
+        # Trade-level regression failed (not enough data or bad fit)
         # Fallback: use square-root law (alpha=0.5) with estimated eta
+        print(f"WARNING: temporary impact estimation failed ({e}), using literature fallback (alpha=0.5)")
         alpha = 0.5
-        # eta from VWAPEstimator-style: sigma * sqrt(participation) * factor
-        eta = sigma * 1e-3  # rough estimate
+        eta = sigma * 1e-3  # rough estimate from square-root law
 
     # 5. S0 from most recent price
     S0 = float(trades["price"].iloc[-1])
