@@ -99,11 +99,76 @@ def estimate_temporary_impact(
     (eta, alpha) : tuple[float, float]
         Temporary impact coefficient and exponent.
     """
-    raise NotImplementedError(
-        "P1: implement power-law fit for temporary impact. "
-        "Use walk_the_book_slippage() output as input data. "
-        "Log-log OLS: np.polyfit(log(qty), log(slippage), 1) → [alpha, log(eta)]"
+    quantities = np.asarray(quantities, dtype=np.float64)
+    slippages_bps = np.asarray(slippages_bps, dtype=np.float64)
+
+    # Filter to positive values only (log-log requires > 0)
+    mask = (quantities > 0) & (slippages_bps > 0)
+    q = quantities[mask]
+    s = slippages_bps[mask]
+
+    if len(q) < 3:
+        raise ValueError(f"Need at least 3 valid (qty, slippage) pairs, got {len(q)}")
+
+    # Log-log OLS: log(slippage) = alpha * log(qty) + log(eta)
+    coeffs = np.polyfit(np.log(q), np.log(s), 1)
+    alpha = float(coeffs[0])
+    eta = float(np.exp(coeffs[1]))
+
+    return eta, alpha
+
+
+def estimate_temporary_impact_from_trades(
+    trades_df,
+    n_buckets: int = 20,
+    min_trades_per_bucket: int = 100,
+) -> tuple[float, float]:
+    """Estimate temporary impact from trade-level data (no order book needed).
+
+    Groups trades into quantity buckets and measures the average absolute
+    price change per bucket. Then fits the power law.
+
+    Parameters
+    ----------
+    trades_df : pd.DataFrame
+        Trade data with columns: price, quantity, side.
+    n_buckets : int
+        Number of quantity percentile buckets.
+    min_trades_per_bucket : int
+        Minimum trades per bucket to include in regression.
+
+    Returns
+    -------
+    (eta, alpha) : tuple[float, float]
+    """
+    import pandas as pd
+
+    df = trades_df.copy()
+    df["abs_price_change"] = df["price"].diff().abs()
+    df = df.dropna(subset=["abs_price_change"])
+    df = df[df["abs_price_change"] > 0]
+
+    # Bucket by quantity percentile
+    df["qty_bucket"] = pd.qcut(df["quantity"], q=n_buckets, duplicates="drop")
+
+    grouped = df.groupby("qty_bucket", observed=True).agg(
+        avg_qty=("quantity", "mean"),
+        avg_impact=("abs_price_change", "mean"),
+        count=("quantity", "size"),
     )
+
+    # Filter buckets with enough trades
+    grouped = grouped[grouped["count"] >= min_trades_per_bucket]
+
+    if len(grouped) < 3:
+        raise ValueError(f"Only {len(grouped)} valid buckets (need >= 3)")
+
+    quantities = grouped["avg_qty"].values
+    # Convert price impact to bps: impact / avg_price * 10000
+    avg_price = df["price"].mean()
+    slippages_bps = grouped["avg_impact"].values / avg_price * 10000
+
+    return estimate_temporary_impact(quantities, slippages_bps)
 
 
 def estimate_realized_vol(
@@ -148,31 +213,76 @@ def estimate_realized_vol(
 
 
 def calibrated_params(
-    trades_path: str | None = None,
-    ob_path: str | None = None,
+    trades_path: str = "data/",
+    X0: float = 10.0,
+    T: float = 1 / 24,
+    N: int = 50,
+    lam: float = 1e-6,
 ) -> ACParams:
-    """Build ACParams from calibrated real data.
+    """Build ACParams from calibrated real Binance data.
 
     This is the FINAL interface P2 and P3 call once P1 is done.
-    Until then, use DEFAULT_PARAMS.
 
     Parameters
     ----------
-    trades_path : str, optional
-        Path to trade data.
-    ob_path : str, optional
-        Path to order book snapshots.
+    trades_path : str
+        Path to trade data directory or CSV file.
+    X0 : float
+        Inventory to liquidate (in BTC). Default 10 BTC.
+    T : float
+        Execution horizon in years. Default 1/24 ≈ 1 hour.
+    N : int
+        Number of time steps.
+    lam : float
+        Risk aversion parameter.
 
     Returns
     -------
     ACParams
         Fully calibrated parameter set.
     """
-    raise NotImplementedError(
-        "P1: implement full calibration pipeline. "
-        "1. Load data via data_loader "
-        "2. estimate_kyle_lambda → gamma "
-        "3. estimate_temporary_impact → (eta, alpha) "
-        "4. estimate_realized_vol → sigma "
-        "5. Return ACParams with real values"
+    from calibration.data_loader import load_trades, compute_mid_prices
+
+    # 1. Load data
+    trades = load_trades(trades_path)
+    mids = compute_mid_prices(trades, freq="5min")
+
+    # 2. Realized volatility
+    prices = mids["mid_price"].values
+    sigma = estimate_realized_vol(prices, freq_seconds=300.0, annualize=True)
+
+    # 3. Kyle's lambda → gamma (permanent impact)
+    trades_sorted = trades.sort_values("timestamp")
+    delta_prices = trades_sorted["price"].diff().dropna().values
+    signed_flows = (trades_sorted["quantity"] * trades_sorted["side"]).values[1:]
+    gamma = estimate_kyle_lambda(delta_prices, signed_flows)
+    if gamma is None or gamma <= 0:
+        gamma = 1e-4  # fallback if estimation fails
+
+    # 4. Temporary impact → (eta, alpha)
+    try:
+        eta, alpha = estimate_temporary_impact_from_trades(trades, n_buckets=20)
+        # Sanity check: alpha should be in [0.3, 1.5]
+        if alpha < 0.3 or alpha > 1.5:
+            eta, alpha = 1e-3, 0.6  # fallback to literature values
+    except (ValueError, Exception):
+        # Fallback: use square-root law (alpha=0.5) with estimated eta
+        alpha = 0.5
+        # eta from VWAPEstimator-style: sigma * sqrt(participation) * factor
+        eta = sigma * 1e-3  # rough estimate
+
+    # 5. S0 from most recent price
+    S0 = float(trades["price"].iloc[-1])
+
+    return ACParams(
+        S0=S0,
+        sigma=sigma,
+        mu=0.0,
+        X0=X0,
+        T=T,
+        N=N,
+        gamma=gamma,
+        eta=eta,
+        alpha=alpha,
+        lam=lam,
     )
