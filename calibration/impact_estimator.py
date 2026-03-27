@@ -176,7 +176,10 @@ def estimate_realized_vol(
     freq_seconds: float = 300.0,
     annualize: bool = True,
 ) -> float:
-    """Estimate realized volatility from price series.
+    """Estimate realized volatility from price series (close-to-close).
+
+    Basic estimator using only closing prices. For a more efficient
+    estimator that uses OHLC data, see estimate_realized_vol_gk().
 
     Parameters
     ----------
@@ -212,6 +215,70 @@ def estimate_realized_vol(
     return float(vol)
 
 
+def estimate_realized_vol_gk(
+    ohlc_df,
+    freq_seconds: float = 300.0,
+    annualize: bool = True,
+) -> float:
+    """Garman-Klass realized volatility estimator using OHLC bars.
+
+    ~7.4x more efficient than close-to-close: uses Open, High, Low, Close
+    from each bar instead of just the closing price. Same data, much
+    tighter estimate.
+
+    GK variance per bar:
+        σ²_GK = 0.5*(u-d)² - (2ln2-1)*c²
+    where:
+        u = ln(High/Open), d = ln(Low/Open), c = ln(Close/Open)
+
+    Reference: Garman & Klass (1980), "On the Estimation of Security
+    Price Volatilities from Historical Data"
+
+    Parameters
+    ----------
+    ohlc_df : pd.DataFrame
+        OHLC bars with columns: open, high, low, close.
+        Use calibration.data_loader.compute_ohlc() to generate.
+    freq_seconds : float
+        Bar frequency in seconds (default: 300 = 5 minutes).
+    annualize : bool
+        If True, annualize for crypto 24/7 calendar.
+
+    Returns
+    -------
+    float
+        Garman-Klass realized volatility (annualized if requested).
+    """
+    o = ohlc_df["open"].values.astype(np.float64)
+    h = ohlc_df["high"].values.astype(np.float64)
+    l = ohlc_df["low"].values.astype(np.float64)
+    c = ohlc_df["close"].values.astype(np.float64)
+
+    # Filter bars where OHLC are all positive
+    valid = (o > 0) & (h > 0) & (l > 0) & (c > 0)
+    o, h, l, c = o[valid], h[valid], l[valid], c[valid]
+
+    if len(o) < 2:
+        raise ValueError("Need at least 2 valid OHLC bars")
+
+    u = np.log(h / o)  # ln(High/Open)
+    d = np.log(l / o)  # ln(Low/Open)
+    cc = np.log(c / o)  # ln(Close/Open)
+
+    # Garman-Klass per-bar variance
+    gk_var_per_bar = 0.5 * (u - d)**2 - (2 * np.log(2) - 1) * cc**2
+
+    # Average variance per bar
+    vol_per_bar = np.sqrt(np.mean(gk_var_per_bar))
+
+    if annualize:
+        seconds_per_year = 365.25 * 24 * 3600
+        bars_per_year = seconds_per_year / freq_seconds
+        vol_per_bar *= np.sqrt(bars_per_year)
+
+    return float(vol_per_bar)
+
+
 def calibrated_params(
     trades_path: str = "data/",
     X0: float = 10.0,
@@ -241,15 +308,14 @@ def calibrated_params(
     ACParams
         Fully calibrated parameter set.
     """
-    from calibration.data_loader import load_trades, compute_mid_prices
+    from calibration.data_loader import load_trades, compute_mid_prices, compute_ohlc
 
     # 1. Load data
     trades = load_trades(trades_path)
-    mids = compute_mid_prices(trades, freq="5min")
 
-    # 2. Realized volatility
-    prices = mids["mid_price"].values
-    sigma = estimate_realized_vol(prices, freq_seconds=300.0, annualize=True)
+    # 2. Realized volatility — Garman-Klass (7.4x more efficient than close-to-close)
+    ohlc = compute_ohlc(trades, freq="5min")
+    sigma = estimate_realized_vol_gk(ohlc, freq_seconds=300.0, annualize=True)
 
     # 3. Kyle's lambda → gamma (permanent impact)
     trades_sorted = trades.sort_values("timestamp")

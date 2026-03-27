@@ -110,6 +110,40 @@ def _load_single_csv(filepath: Path) -> pd.DataFrame:
     return df[["timestamp", "price", "quantity", "side"]]
 
 
+def compute_ohlc(
+    trades: pd.DataFrame,
+    freq: str = "5min",
+) -> pd.DataFrame:
+    """Resample trade data into OHLC bars.
+
+    Uses all tick prices within each bar — much more information than
+    just VWAP. Required for Garman-Klass volatility estimator.
+
+    Parameters
+    ----------
+    trades : pd.DataFrame
+        Trade data with columns: timestamp, price.
+    freq : str
+        Resampling frequency (default: '5min').
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns: timestamp, open, high, low, close, volume.
+    """
+    df = trades.set_index("timestamp")
+
+    ohlc = df["price"].resample(freq).ohlc()
+    volume = df["quantity"].resample(freq).sum()
+
+    result = ohlc.copy()
+    result["volume"] = volume
+    result = result.dropna()
+    result = result.reset_index()
+
+    return result
+
+
 def load_orderbook_snapshots(
     path: str | Path,
     depth: int = 20,
