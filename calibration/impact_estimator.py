@@ -279,6 +279,67 @@ def estimate_realized_vol_gk(
     return float(vol_per_bar)
 
 
+def estimate_realized_vol_rs(
+    ohlc_df,
+    freq_seconds: float = 300.0,
+    annualize: bool = True,
+) -> float:
+    """Rogers-Satchell realized volatility estimator.
+
+    Unlike Garman-Klass, RS does NOT assume zero drift — it handles
+    trending markets correctly. No overnight gap term, so it's naturally
+    suited for 24/7 crypto and intraday bars.
+
+    RS variance per bar:
+        σ²_RS = ln(H/C)·ln(H/O) + ln(L/C)·ln(L/O)
+
+    Use alongside GK as a robustness check. If RS and GK differ by >10%,
+    the market is likely trending and GK is overestimating.
+
+    Reference: Rogers & Satchell (1991), "Estimating Variance From
+    High, Low and Closing Prices"
+
+    Parameters
+    ----------
+    ohlc_df : pd.DataFrame
+        OHLC bars with columns: open, high, low, close.
+    freq_seconds : float
+        Bar frequency in seconds (default: 300 = 5 minutes).
+    annualize : bool
+        If True, annualize for crypto 24/7 calendar.
+
+    Returns
+    -------
+    float
+        Rogers-Satchell realized volatility (annualized if requested).
+    """
+    o = ohlc_df["open"].values.astype(np.float64)
+    h = ohlc_df["high"].values.astype(np.float64)
+    l = ohlc_df["low"].values.astype(np.float64)
+    c = ohlc_df["close"].values.astype(np.float64)
+
+    valid = (o > 0) & (h > 0) & (l > 0) & (c > 0)
+    o, h, l, c = o[valid], h[valid], l[valid], c[valid]
+
+    if len(o) < 2:
+        raise ValueError("Need at least 2 valid OHLC bars")
+
+    # Rogers-Satchell per-bar variance (drift-robust)
+    rs_var_per_bar = np.log(h / c) * np.log(h / o) + np.log(l / c) * np.log(l / o)
+
+    # Clip negative values (can occur from microstructure noise)
+    rs_var_per_bar = np.clip(rs_var_per_bar, 0, None)
+
+    vol_per_bar = np.sqrt(np.mean(rs_var_per_bar))
+
+    if annualize:
+        seconds_per_year = 365.25 * 24 * 3600
+        bars_per_year = seconds_per_year / freq_seconds
+        vol_per_bar *= np.sqrt(bars_per_year)
+
+    return float(vol_per_bar)
+
+
 def calibrated_params(
     trades_path: str = "data/",
     X0: float = 10.0,
