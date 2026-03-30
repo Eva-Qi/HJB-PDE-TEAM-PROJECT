@@ -13,6 +13,8 @@ References:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 from shared.params import ACParams
 
@@ -171,50 +173,6 @@ def estimate_temporary_impact_from_trades(
     return estimate_temporary_impact(quantities, slippages_bps)
 
 
-def estimate_realized_vol(
-    prices: np.ndarray,
-    freq_seconds: float = 300.0,
-    annualize: bool = True,
-) -> float:
-    """Estimate realized volatility from price series (close-to-close).
-
-    Basic estimator using only closing prices. For a more efficient
-    estimator that uses OHLC data, see estimate_realized_vol_gk().
-
-    Parameters
-    ----------
-    prices : np.ndarray
-        Price series (e.g., mid prices sampled at regular intervals).
-    freq_seconds : float
-        Sampling frequency in seconds (default: 300 = 5 minutes).
-    annualize : bool
-        If True, annualize by sqrt(seconds_per_year / freq_seconds).
-
-    Returns
-    -------
-    float
-        Realized volatility (annualized if requested).
-    """
-    prices = np.asarray(prices, dtype=np.float64)
-    if len(prices) < 2:
-        raise ValueError("Need at least 2 prices to compute volatility")
-
-    # Filter out zeros/NaNs to avoid log issues
-    prices = prices[prices > 0]
-    prices = prices[~np.isnan(prices)]
-
-    log_returns = np.diff(np.log(prices))
-    vol = np.std(log_returns, ddof=1)
-
-    if annualize:
-        # seconds_per_year = 365.25 * 24 * 3600 (crypto trades 24/7)
-        seconds_per_year = 365.25 * 24 * 3600
-        annualization_factor = seconds_per_year / freq_seconds
-        vol *= np.sqrt(annualization_factor)
-
-    return float(vol)
-
-
 def estimate_realized_vol_gk(
     ohlc_df,
     freq_seconds: float = 300.0,
@@ -340,16 +298,41 @@ def estimate_realized_vol_rs(
     return float(vol_per_bar)
 
 
+@dataclass
+class CalibrationResult:
+    """Calibrated parameters with metadata on estimation quality.
+
+    Attributes
+    ----------
+    params : ACParams
+        Calibrated parameter set.
+    sources : dict[str, str]
+        Maps parameter name to its source:
+        "estimated" = from real data, "fallback" = literature default.
+    warnings : list[str]
+        Any warnings generated during calibration.
+    sigma_rs : float | None
+        Rogers-Satchell vol estimate for robustness comparison.
+    """
+
+    params: ACParams
+    sources: dict  # e.g. {"sigma": "estimated", "gamma": "estimated", "eta": "fallback", "alpha": "fallback"}
+    warnings: list
+    sigma_rs: float | None = None
+
+
 def calibrated_params(
     trades_path: str = "data/",
     X0: float = 10.0,
     T: float = 1 / 24,
     N: int = 50,
     lam: float = 1e-6,
-) -> ACParams:
+) -> CalibrationResult:
     """Build ACParams from calibrated real Binance data.
 
     This is the FINAL interface P2 and P3 call once P1 is done.
+    Returns CalibrationResult with metadata on which parameters were
+    estimated from data vs literature fallback.
 
     Parameters
     ----------
@@ -366,10 +349,13 @@ def calibrated_params(
 
     Returns
     -------
-    ACParams
-        Fully calibrated parameter set.
+    CalibrationResult
+        Calibrated parameters + metadata. Access params via result.params.
     """
-    from calibration.data_loader import load_trades, compute_mid_prices, compute_ohlc
+    from calibration.data_loader import load_trades, compute_ohlc
+
+    sources = {}
+    warnings = []
 
     # 1. Load data
     trades = load_trades(trades_path)
@@ -377,6 +363,19 @@ def calibrated_params(
     # 2. Realized volatility — Garman-Klass (7.4x more efficient than close-to-close)
     ohlc = compute_ohlc(trades, freq="5min")
     sigma = estimate_realized_vol_gk(ohlc, freq_seconds=300.0, annualize=True)
+    sources["sigma"] = "estimated"
+
+    # 2b. Rogers-Satchell for robustness comparison
+    sigma_rs = None
+    try:
+        sigma_rs = estimate_realized_vol_rs(ohlc, freq_seconds=300.0, annualize=True)
+        drift_gap = abs(sigma - sigma_rs) / sigma
+        if drift_gap > 0.10:
+            msg = (f"GK ({sigma:.4f}) and RS ({sigma_rs:.4f}) differ by "
+                   f"{drift_gap:.1%} — market may be trending, GK could overestimate")
+            warnings.append(msg)
+    except ValueError:
+        pass
 
     # 3. Kyle's lambda → gamma (permanent impact)
     trades_sorted = trades.sort_values("timestamp")
@@ -384,27 +383,38 @@ def calibrated_params(
     signed_flows = (trades_sorted["quantity"] * trades_sorted["side"]).values[1:]
     gamma = estimate_kyle_lambda(delta_prices, signed_flows)
     if gamma is None or gamma <= 0:
-        print(f"WARNING: Kyle's lambda estimation failed (gamma={gamma}), using fallback 1e-4")
+        msg = f"Kyle's lambda estimation failed (gamma={gamma}), using fallback 1e-4"
+        warnings.append(msg)
         gamma = 1e-4
+        sources["gamma"] = "fallback"
+    else:
+        sources["gamma"] = "estimated"
 
     # 4. Temporary impact → (eta, alpha)
     try:
         eta, alpha = estimate_temporary_impact_from_trades(trades, n_buckets=20)
         # Sanity check: alpha should be in [0.3, 1.5]
         if alpha < 0.3 or alpha > 1.5:
-            print(f"WARNING: estimated alpha={alpha:.3f} out of range [0.3, 1.5], using literature fallback (alpha=0.6)")
+            msg = f"estimated alpha={alpha:.3f} out of range [0.3, 1.5], using literature fallback"
+            warnings.append(msg)
             eta, alpha = 1e-3, 0.6
+            sources["eta"] = "fallback"
+            sources["alpha"] = "fallback"
+        else:
+            sources["eta"] = "estimated"
+            sources["alpha"] = "estimated"
     except ValueError as e:
-        # Trade-level regression failed (not enough data or bad fit)
-        # Fallback: use square-root law (alpha=0.5) with estimated eta
-        print(f"WARNING: temporary impact estimation failed ({e}), using literature fallback (alpha=0.5)")
+        msg = f"temporary impact estimation failed ({e}), using literature fallback"
+        warnings.append(msg)
         alpha = 0.5
-        eta = sigma * 1e-3  # rough estimate from square-root law
+        eta = sigma * 1e-3
+        sources["eta"] = "fallback"
+        sources["alpha"] = "fallback"
 
     # 5. S0 from most recent price
     S0 = float(trades["price"].iloc[-1])
 
-    return ACParams(
+    params = ACParams(
         S0=S0,
         sigma=sigma,
         mu=0.0,
@@ -415,4 +425,11 @@ def calibrated_params(
         eta=eta,
         alpha=alpha,
         lam=lam,
+    )
+
+    return CalibrationResult(
+        params=params,
+        sources=sources,
+        warnings=warnings,
+        sigma_rs=sigma_rs,
     )

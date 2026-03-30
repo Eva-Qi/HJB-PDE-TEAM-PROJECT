@@ -4,9 +4,6 @@ Shows that Sobol converges faster to the true mean cost.
 The "true" cost is the deterministic execution_cost (no stochastic component).
 """
 
-import sys
-sys.path.insert(0, ".")
-
 import numpy as np
 import matplotlib.pyplot as plt
 

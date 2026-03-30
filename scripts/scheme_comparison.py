@@ -6,9 +6,6 @@ For GBM with market impact, compares:
 3. Convergence with dt refinement
 """
 
-import sys
-sys.path.insert(0, ".")
-
 import numpy as np
 import matplotlib.pyplot as plt
 

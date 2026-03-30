@@ -203,5 +203,4 @@ def compute_mid_prices(
     }).dropna()
 
     result = result.reset_index()
-    result.rename(columns={"timestamp": "timestamp"}, inplace=True)
     return result

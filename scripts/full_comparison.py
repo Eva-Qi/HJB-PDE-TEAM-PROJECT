@@ -8,9 +8,6 @@ Runs TWAP / VWAP / Optimal across:
 Produces the final comparison table and distribution plots.
 """
 
-import sys
-sys.path.insert(0, ".")
-
 import numpy as np
 import matplotlib.pyplot as plt
 
