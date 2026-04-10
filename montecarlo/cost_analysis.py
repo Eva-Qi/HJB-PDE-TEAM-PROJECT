@@ -20,6 +20,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from typing import Literal, Optional
+
+from scipy import stats
 
 @dataclass
 class CostMetrics:
@@ -57,6 +60,40 @@ class CostMetricsWithCI:
     median: float
     n_paths: int
 
+@dataclass
+class PairedTestResult:
+    """Result of a paired comparison between two execution strategies.
+
+    Sign convention: positive `mean_diff` means strategy A costs MORE than
+    strategy B on average (i.e. B is the better strategy). Flip the argument
+    order in `paired_strategy_test` to reverse the reading.
+
+    Fields populated by `paired_strategy_test` depend on the `test` argument:
+    fields for tests that were not requested are left as None.
+
+    Attributes
+    ----------
+    label_a, label_b : str
+        Human-readable strategy names used for printing and plotting.
+    n_paths : int
+        Number of paired observations (paths) used.
+    mean_diff : float
+        Sample mean of D_i = C^A_i - C^B_i. Point estimate of E[D].
+    t_statistic : float or None
+        Paired t statistic. None if the t-test was not requested.
+    t_pvalue : float or None
+        Two-sided p-value from the paired t-test. None if not requested.
+    bootstrap_pvalue : float or None
+        Two-sided p-value from the paired bootstrap test. None if not requested.
+    """
+
+    label_a: str
+    label_b: str
+    n_paths: int
+    mean_diff: float
+    t_statistic: Optional[float] = None
+    t_pvalue: Optional[float] = None
+    bootstrap_pvalue: Optional[float] = None
 
 def compute_metrics(costs: np.ndarray) -> CostMetrics:
     """Compute cost distribution summary statistics.
@@ -232,3 +269,183 @@ def print_comparison_with_ci(
             print(f"{name:<12} {stat_name:<8} {ci.estimate:>12.2f} "
                   f"{ci.ci_lower:>14.2f} {ci.ci_upper:>14.2f}")
         print()
+
+def paired_t_test(
+    costs_a: np.ndarray,
+    costs_b: np.ndarray,
+) -> tuple[float, float]:
+    """Paired t-test comparing two strategies' per-path execution costs.
+
+    Tests H_0: E[C_a - C_b] = 0 against a two-sided alternative. Assumes
+    costs_a[i] and costs_b[i] are realized on the SAME simulated price path
+    (i.e. caller ran both simulations with a shared Z_extern). Pairing is
+    what gives this test its variance-reduction power over an unpaired
+    two-sample t-test on the same data.
+
+    Validity at large n_paths is justified by the CLT acting on the sample
+    mean of D_i = costs_a[i] - costs_b[i], not by D_i itself being normal.
+
+    Parameters
+    ----------
+    costs_a : np.ndarray, shape (n_paths,)
+        Realized execution costs for strategy A.
+    costs_b : np.ndarray, shape (n_paths,)
+        Realized execution costs for strategy B, paired by index with costs_a.
+
+    Returns
+    -------
+    t_stat : float
+        Paired t statistic.
+    p_value : float
+        Two-sided p-value under H_0: E[C_a - C_b] = 0.
+
+    Raises
+    ------
+    ValueError
+        If costs_a and costs_b have different shapes.
+    """
+    if costs_a.shape != costs_b.shape:
+        raise ValueError(
+            f"shape mismatch: {costs_a.shape} vs {costs_b.shape}"
+        )
+
+    diff = costs_a - costs_b
+    result = stats.ttest_1samp(diff, popmean=0.0)
+    return float(result.statistic), float(result.pvalue)
+
+def paired_bootstrap_test(
+    costs_a: np.ndarray,
+    costs_b: np.ndarray,
+    n_bootstrap: int = 10_000,
+    seed: int = 42,
+) -> tuple[float, float]:
+    """Paired bootstrap test comparing two strategies' per-path costs.
+
+    Tests H_0: E[C_a - C_b] = 0 against a two-sided alternative, without
+    the CLT-based normality assumption used by paired_t_test. Appropriate
+    when n_paths is small or when the distribution of D_i = costs_a - costs_b
+    is heavy-tailed enough that CLT convergence is suspect.
+
+    Method: shift D so its mean is zero (making it obey H_0 by construction),
+    then resample the shifted array with replacement n_bootstrap times and
+    compute the mean on each resample. The empirical distribution of these
+    null bootstrap means is the null distribution. The p-value is the
+    fraction of null bootstrap means at least as extreme (in absolute value)
+    as the observed mean_diff.
+
+    Parameters
+    ----------
+    costs_a : np.ndarray, shape (n_paths,)
+        Realized execution costs for strategy A.
+    costs_b : np.ndarray, shape (n_paths,)
+        Paired with costs_a by index.
+    n_bootstrap : int
+        Number of bootstrap resamples.
+    seed : int
+        Seed for the bootstrap resampler.
+
+    Returns
+    -------
+    mean_diff : float
+        Observed sample mean of D_i = costs_a[i] - costs_b[i].
+    p_value : float
+        Two-sided bootstrap p-value under H_0: E[D] = 0.
+
+    Raises
+    ------
+    ValueError
+        If costs_a and costs_b have different shapes.
+    """
+    if costs_a.shape != costs_b.shape:
+        raise ValueError(
+            f"shape mismatch: {costs_a.shape} vs {costs_b.shape}"
+        )
+
+    diff = costs_a - costs_b
+    mean_diff = float(np.mean(diff))
+    shifted = diff - mean_diff  # now sample-mean is exactly 0 (null world)
+
+    rng = np.random.default_rng(seed)
+    n = len(diff)
+
+    # Vectorized resampling: one 2D index array, one fancy-index lookup.
+    idx = rng.integers(0, n, size=(n_bootstrap, n))
+    null_boot_means = shifted[idx].mean(axis=1)
+
+    p_value = float(np.mean(np.abs(null_boot_means) >= abs(mean_diff)))
+
+    return mean_diff, p_value
+
+def paired_strategy_test(
+    costs_a: np.ndarray,
+    costs_b: np.ndarray,
+    label_a: str = "A",
+    label_b: str = "B",
+    test: Literal["t", "bootstrap", "both"] = "both",
+    n_bootstrap: int = 10_000,
+    seed: int = 42,
+) -> PairedTestResult:
+    """Paired comparison of two strategies' per-path costs.
+
+    Dispatches to `paired_t_test` and/or `paired_bootstrap_test` depending
+    on the `test` argument and packages the results into a single
+    `PairedTestResult`. Both tests share the same null hypothesis
+    H_0: E[C_a - C_b] = 0 (two-sided).
+
+    The recommended default is `test="both"`: the t-test provides the
+    classical benchmark (valid by CLT at large n_paths) and the bootstrap
+    provides a distribution-free check robust to the skew in execution
+    cost distributions. Agreement between the two makes the finding robust.
+
+    Parameters
+    ----------
+    costs_a, costs_b : np.ndarray, shape (n_paths,)
+        Realized execution costs, paired by index (same simulated paths).
+    label_a, label_b : str
+        Names for the two strategies in the returned result.
+    test : {"t", "bootstrap", "both"}
+        Which test(s) to run.
+    n_bootstrap : int
+        Number of bootstrap resamples (ignored if test == "t").
+    seed : int
+        Seed for the bootstrap resampler (ignored if test == "t").
+
+    Returns
+    -------
+    PairedTestResult
+
+    Raises
+    ------
+    ValueError
+        If `test` is not one of the allowed values, or if the two cost
+        arrays have different shapes (propagated from the primitives).
+    """
+    if test not in ("t", "bootstrap", "both"):
+        raise ValueError(
+            f"unknown test: {test!r}. Use 't', 'bootstrap', or 'both'."
+        )
+
+    n_paths = len(costs_a)
+    mean_diff = float(np.mean(costs_a - costs_b))
+
+    t_statistic: Optional[float] = None
+    t_pvalue: Optional[float] = None
+    bootstrap_pvalue: Optional[float] = None
+
+    if test in ("t", "both"):
+        t_statistic, t_pvalue = paired_t_test(costs_a, costs_b)
+
+    if test in ("bootstrap", "both"):
+        _, bootstrap_pvalue = paired_bootstrap_test(
+            costs_a, costs_b, n_bootstrap=n_bootstrap, seed=seed
+        )
+
+    return PairedTestResult(
+        label_a=label_a,
+        label_b=label_b,
+        n_paths=n_paths,
+        mean_diff=mean_diff,
+        t_statistic=t_statistic,
+        t_pvalue=t_pvalue,
+        bootstrap_pvalue=bootstrap_pvalue,
+    )
