@@ -1,0 +1,101 @@
+{
+  "method": "order_book_depth_walking",
+  "data_source": "tardis_book_snapshot_25_binance_BTCUSDT",
+  "date_range": "2026-03-24 to 2026-04-01",
+  "n_days": 9,
+  "n_snapshots": 10213,
+  "sample_interval_approx": "~60 seconds",
+  "n_levels": 25,
+  "fit": {
+    "alpha": 0.470719,
+    "eta_bps": 0.040828,
+    "r_squared": 0.893787,
+    "se_alpha": 0.066246,
+    "p_value": 0.00039037843613478083,
+    "intercept": -3.198397,
+    "n_points": 8
+  },
+  "slippage_table": [
+    {
+      "q_btc": 0.01,
+      "mean_bps": 0.0048,
+      "median_bps": 0.0007,
+      "std_bps": 0.0348,
+      "p25_bps": 0.0007,
+      "p75_bps": 0.0007,
+      "n_obs": 10213
+    },
+    {
+      "q_btc": 0.05,
+      "mean_bps": 0.0135,
+      "median_bps": 0.0007,
+      "std_bps": 0.0763,
+      "p25_bps": 0.0007,
+      "p75_bps": 0.0008,
+      "n_obs": 10108
+    },
+    {
+      "q_btc": 0.1,
+      "mean_bps": 0.0163,
+      "median_bps": 0.0007,
+      "std_bps": 0.0863,
+      "p25_bps": 0.0007,
+      "p75_bps": 0.0008,
+      "n_obs": 9964
+    },
+    {
+      "q_btc": 0.5,
+      "mean_bps": 0.0229,
+      "median_bps": 0.0007,
+      "std_bps": 0.0892,
+      "p25_bps": 0.0007,
+      "p75_bps": 0.0008,
+      "n_obs": 8825
+    },
+    {
+      "q_btc": 1.0,
+      "mean_bps": 0.0245,
+      "median_bps": 0.0007,
+      "std_bps": 0.0897,
+      "p25_bps": 0.0007,
+      "p75_bps": 0.0008,
+      "n_obs": 7540
+    },
+    {
+      "q_btc": 2.0,
+      "mean_bps": 0.0346,
+      "median_bps": 0.0007,
+      "std_bps": 0.1025,
+      "p25_bps": 0.0007,
+      "p75_bps": 0.0058,
+      "n_obs": 5391
+    },
+    {
+      "q_btc": 5.0,
+      "mean_bps": 0.1044,
+      "median_bps": 0.0435,
+      "std_bps": 0.1457,
+      "p25_bps": 0.0009,
+      "p75_bps": 0.1504,
+      "n_obs": 2205
+    },
+    {
+      "q_btc": 10.0,
+      "mean_bps": 0.2143,
+      "median_bps": 0.1677,
+      "std_bps": 0.1945,
+      "p25_bps": 0.0793,
+      "p75_bps": 0.2838,
+      "n_obs": 412
+    }
+  ],
+  "comparison": {
+    "ob_alpha": 0.470719,
+    "aggregated_flow_alpha_1min": 0.34,
+    "literature_range": [
+      0.5,
+      0.6
+    ]
+  },
+  "runtime_seconds": 32.2
+}

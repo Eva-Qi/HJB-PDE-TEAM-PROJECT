@@ -22,7 +22,7 @@ aggregated trade records with **no header row**. Columns are:
 | 2 | quantity         | float   | Trade quantity (BTC)                 |
 | 3 | first_trade_id   | int     | First individual trade ID in agg     |
 | 4 | last_trade_id    | int     | Last individual trade ID in agg      |
-| 5 | timestamp        | int     | Unix timestamp in milliseconds       |
+| 5 | timestamp        | int     | Unix timestamp in microseconds       |
 | 6 | is_buyer_maker   | bool    | True = seller initiated (taker sell) |
 | 7 | is_best_match    | bool    | Best price match                     |
 

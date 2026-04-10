@@ -324,7 +324,7 @@ class CalibrationResult:
 def calibrated_params(
     trades_path: str = "data/",
     X0: float = 10.0,
-    T: float = 1 / 24,
+    T: float = 1.0 / (365.25 * 24),
     N: int = 50,
     lam: float = 1e-6,
 ) -> CalibrationResult:
@@ -341,7 +341,7 @@ def calibrated_params(
     X0 : float
         Inventory to liquidate (in BTC). Default 10 BTC.
     T : float
-        Execution horizon in years. Default 1/24 ≈ 1 hour.
+        Execution horizon in years. Default ~1 hour.
     N : int
         Number of time steps.
     lam : float

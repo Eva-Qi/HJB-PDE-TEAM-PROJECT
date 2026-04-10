@@ -22,17 +22,7 @@ import requests
 
 BASE_URL = "https://data.binance.vision/data/spot/daily/aggTrades"
 
-# Column names for the aggTrades CSV (Binance doesn't include a header row)
-AGG_TRADES_COLUMNS = [
-    "agg_trade_id",
-    "price",
-    "quantity",
-    "first_trade_id",
-    "last_trade_id",
-    "timestamp",
-    "is_buyer_maker",
-    "is_best_match",
-]
+# See data_loader.py for AGG_TRADES_COLUMNS column definitions
 
 DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 

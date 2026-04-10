@@ -6,7 +6,7 @@ Data sources (in priority order):
     3. Raw snapshots from Tardis.dev
 
 Expected data formats:
-    Trades CSV: timestamp, price, qty, is_buyer_maker
+    Trades CSV: timestamp, price, quantity, is_buyer_maker
     Order book snapshots: timestamp, bids[(price, qty)...], asks[(price, qty)...]
 """
 
@@ -38,7 +38,7 @@ def load_trades(
 ) -> pd.DataFrame:
     """Load trade data from Binance aggTrades CSV(s).
 
-    Expected columns: timestamp, price, qty, is_buyer_maker
+    Expected columns: timestamp, price, quantity, is_buyer_maker
     Returns DataFrame with columns: timestamp, price, quantity, side
     where side = +1 (buy) or -1 (sell).
 
@@ -70,11 +70,12 @@ def load_trades(
 
     # Filter by time range if specified
     if start is not None:
-        start_ts = pd.Timestamp(start)
+        start_ts = pd.Timestamp(start, tz="UTC")
         df = df[df["timestamp"] >= start_ts]
     if end is not None:
-        end_ts = pd.Timestamp(end)
-        df = df[df["timestamp"] <= end_ts]
+        # "end='2026-03-17'" means "include all of March 17th"
+        end_ts = pd.Timestamp(end, tz="UTC") + pd.Timedelta(days=1)
+        df = df[df["timestamp"] < end_ts]
 
     return df.reset_index(drop=True)
 

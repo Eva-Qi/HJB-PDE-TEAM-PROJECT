@@ -115,6 +115,13 @@ def bootstrap_paths_block(
     np.ndarray, shape (n_paths, n_steps+1)
         Synthetic price paths. paths[:, 0] = S0.
     """
+    if block_size >= len(log_returns):
+        raise ValueError(
+            f"block_size ({block_size}) must be smaller than the number of "
+            f"log returns ({len(log_returns)}). Reduce block_size or provide "
+            f"more historical data."
+        )
+
     rng = np.random.default_rng(seed)
     M = len(log_returns)
 

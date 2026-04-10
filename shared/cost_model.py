@@ -60,19 +60,21 @@ def execution_cost(x: np.ndarray, params: ACParams) -> float:
 
     Notes
     -----
-    Cost = sum_{k=0}^{N-1} [ n_k * (gamma * sum_{j<=k} n_j)
+    Cost = sum_{k=0}^{N-1} [ n_k * (gamma * sum_{j<k} n_j)
                               + tau * h(n_k/tau) * n_k/tau ]
-    Simplified for implementation:
-        perm = gamma * sum_k(n_k * cumulative_n_k)
-        temp = sum_k(eta * |n_k/tau|^alpha * n_k)
+
+    Uses the Almgren-Chriss (2000) convention: trade k's permanent
+    impact affects trades k+1, k+2, ... but NOT trade k itself.
+    This matches the MC implementation-shortfall formula where S_k
+    is the price *before* trade k executes.
     """
     dt = params.dt
     n_k = x[:-1] - x[1:]  # trade list: shares sold each step
 
-    # Permanent impact cost: each trade moves price by gamma * n_k
-    # Subsequent trades suffer from prior permanent shifts
-    cumulative_n = np.cumsum(n_k)
-    perm_cost = params.gamma * np.sum(n_k * cumulative_n)
+    # Permanent impact cost: trade k pays for cumulative impact of
+    # trades 0..k-1 (excluding self-impact, per A&C convention)
+    prior_cumulative_n = np.concatenate([[0.0], np.cumsum(n_k[:-1])])
+    perm_cost = params.gamma * np.sum(n_k * prior_cumulative_n)
 
     # Temporary impact cost
     v_k = n_k / dt  # trading rate

@@ -21,7 +21,8 @@ Variance reduction:
 
 from __future__ import annotations
 
-from extensions.heston import HestonParams
+import warnings
+
 import numpy as np
 from scipy.stats.qmc import Sobol
 from scipy.special import ndtri
@@ -361,6 +362,13 @@ def simulate_heston_execution(
     costs : np.ndarray, shape (n_paths,)
         Realized implementation shortfall cost per path.
     """
+    if 2 * heston_params.kappa * heston_params.theta < heston_params.xi ** 2:
+        warnings.warn(
+            f"Feller condition violated: 2*kappa*theta={2*heston_params.kappa*heston_params.theta:.4f} "
+            f"< xi^2={heston_params.xi**2:.4f}. Variance process may hit zero.",
+            stacklevel=2,
+        )
+
     rng = np.random.default_rng(seed)
     N = params.N
     dt = params.dt
@@ -381,9 +389,9 @@ def simulate_heston_execution(
 
     # Initialize state arrays
     S = np.zeros((n_paths, N + 1))
-    v = np.zeros((n_paths, N + 1))
+    var_paths = np.zeros((n_paths, N + 1))
     S[:, 0] = params.S0
-    v[:, 0] = heston_params.v0
+    var_paths[:, 0] = heston_params.v0
     costs = np.zeros(n_paths)
 
     # Unpack Heston params for readability inside the loop
@@ -396,12 +404,12 @@ def simulate_heston_execution(
         costs += n_k[k] * (params.S0 - S[:, k]) + h_k[k] * n_k[k]
 
         # Full truncation: clamp variance at zero before using it in
-        # sqrt() and in the drift, but let v itself evolve freely.
-        v_plus = np.maximum(v[:, k], 0.0)
+        # sqrt() and in the drift, but let var_paths itself evolve freely.
+        v_plus = np.maximum(var_paths[:, k], 0.0)
 
         # Variance step (Euler-Maruyama, full truncation)
-        v[:, k + 1] = (
-            v[:, k]
+        var_paths[:, k + 1] = (
+            var_paths[:, k]
             + kappa * (theta - v_plus) * dt
             + xi * np.sqrt(v_plus) * sqrt_dt * Z_v[:, k]
         )
@@ -414,7 +422,7 @@ def simulate_heston_execution(
             - params.gamma * n_k[k]
         )
 
-    return S, v, costs
+    return S, var_paths, costs
 
 def simulate_pde_optimal_execution(
     params: ACParams,

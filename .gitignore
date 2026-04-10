@@ -8,3 +8,12 @@ build/
 *.ipynb_checkpoints/
 WALKTHROUGH.md
 TECHNICAL_SUMMARY.md
+
+# Large data files (download via: python -m calibration.download_binance --days 98)
+data/BTCUSDT-aggTrades-*.csv
+
+# Generated plots and reports
+plot_*.png
+PROJECT_AUDIT_REPORT.pdf
+PROJECT_AUDIT_REPORT.md
+calibrated_pipeline_results.png
