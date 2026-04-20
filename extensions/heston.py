@@ -218,6 +218,347 @@ def calibrate_heston(
     )
 
 
+# ---------------------------------------------------------------------------
+# Q-measure calibration from options IV surface (Deribit BTC chain)
+# ---------------------------------------------------------------------------
+
+def _bs_call_price(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float:
+    """Black-Scholes call price."""
+    from scipy.stats import norm
+    if T <= 0 or sigma <= 0:
+        return max(S * np.exp(-q * T) - K * np.exp(-r * T), 0.0)
+    d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    return S * np.exp(-q * T) * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+
+
+def _bs_put_price(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float:
+    """Black-Scholes put price."""
+    from scipy.stats import norm
+    if T <= 0 or sigma <= 0:
+        return max(K * np.exp(-r * T) - S * np.exp(-q * T), 0.0)
+    d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    return K * np.exp(-r * T) * norm.cdf(-d2) - S * np.exp(-q * T) * norm.cdf(-d1)
+
+
+def _bs_iv(
+    price: float,
+    S: float,
+    K: float,
+    T: float,
+    r: float,
+    q: float,
+    is_call: bool = True,
+) -> float | None:
+    """Invert BS price to implied volatility via Brent's method.
+
+    Returns None if inversion fails (price outside no-arbitrage bounds,
+    or solver doesn't converge).
+    """
+    from scipy.optimize import brentq
+
+    if T <= 0 or price <= 0:
+        return None
+
+    if is_call:
+        intrinsic = max(S * np.exp(-q * T) - K * np.exp(-r * T), 0.0)
+        upper_bound = S * np.exp(-q * T)
+        if price <= intrinsic or price >= upper_bound:
+            return None
+        f = lambda sigma: _bs_call_price(S, K, T, r, q, sigma) - price
+    else:
+        intrinsic = max(K * np.exp(-r * T) - S * np.exp(-q * T), 0.0)
+        upper_bound = K * np.exp(-r * T)
+        if price <= intrinsic or price >= upper_bound:
+            return None
+        f = lambda sigma: _bs_put_price(S, K, T, r, q, sigma) - price
+
+    try:
+        return brentq(f, 1e-6, 10.0, xtol=1e-7, maxiter=200)
+    except (ValueError, RuntimeError):
+        return None
+
+
+def _bs_delta(S: float, K: float, T: float, r: float, q: float, sigma: float, is_call: bool) -> float:
+    """Black-Scholes delta."""
+    from scipy.stats import norm
+    if T <= 0 or sigma <= 0:
+        return 0.0
+    d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    if is_call:
+        return float(np.exp(-q * T) * norm.cdf(d1))
+    else:
+        return float(-np.exp(-q * T) * norm.cdf(-d1))
+
+
+def _heston_model_iv_batch(
+    S0: float,
+    strikes: np.ndarray,
+    T: float,
+    r: float,
+    q: float,
+    kappa: float,
+    theta: float,
+    xi: float,
+    rho: float,
+    v0: float,
+    alpha: float = 1.0,
+    N: int = 2**12,
+    B: float = 1000.0,
+) -> np.ndarray:
+    """Compute Heston model IVs for all strikes at a single expiry T.
+
+    Uses one FFT call (vectorized across strikes), then inverts each price
+    to BS IV.  Returns an array of IVs aligned with `strikes`; NaN where
+    inversion fails.
+    """
+    # One FFT gives call prices on the full strike grid
+    fft_strikes, fft_prices, _ = fft_call_price(
+        S0, S0, r, q, T, alpha, N, B, kappa, theta, xi, rho, v0
+    )
+
+    # Interpolate at each requested strike using the log-space grid
+    log_fft_k = np.log(fft_strikes)
+    model_ivs = np.empty(len(strikes))
+    for i, K in enumerate(strikes):
+        price = float(np.interp(np.log(K), log_fft_k, fft_prices))
+        iv = _bs_iv(price, S0, K, T, r, q, is_call=True)
+        model_ivs[i] = iv if iv is not None else np.nan
+    return model_ivs
+
+
+def calibrate_heston_from_options(
+    option_chain,            # pd.DataFrame from download_deribit output
+    underlying_price: float,
+    r: float = 0.0,
+    q: float = 0.0,
+    n_starts: int = 5,
+    delta_filter: tuple = (0.10, 0.90),
+    atm_only: bool = False,
+    seed: int = 42,
+) -> HestonParams:
+    """Calibrate Heston (κ, θ, ξ, ρ, v₀) from Q-measure option IV surface.
+
+    Minimizes Σ (model_iv − market_iv)² over the filtered option chain.
+    Uses FFT-based Carr-Madan pricing (one FFT per expiry per loss evaluation),
+    inverts model prices to BS IV, and runs multi-start L-BFGS-B.
+
+    Parameters
+    ----------
+    option_chain : pd.DataFrame
+        Columns: kind (C/P), strike, T (years), mark_iv (decimal).
+        Produced by calibration.download_deribit.snapshot_to_dataframe().
+    underlying_price : float
+        Current BTC/USD spot price.
+    r : float
+        Risk-free rate (0 for crypto).
+    q : float
+        Dividend/funding yield (0 for crypto spot).
+    n_starts : int
+        Number of random multi-start points for L-BFGS-B.
+    delta_filter : tuple (low, high)
+        Only keep contracts with |delta| in [low, high].  Filters deep
+        OTM/ITM options where IV is noisy.
+    atm_only : bool
+        If True, keep only strikes within ±20% of spot (overrides delta_filter).
+    seed : int
+        RNG seed for reproducible multi-start sampling.
+
+    Returns
+    -------
+    HestonParams
+        Calibrated parameters.  Logs a Feller warning if 2κθ < ξ².
+    """
+    import pandas as pd
+    from scipy.optimize import minimize
+
+    S0 = underlying_price
+
+    # ------------------------------------------------------------------ #
+    # Step 1 — pre-filter the chain                                       #
+    # ------------------------------------------------------------------ #
+    df = option_chain.copy()
+
+    # Drop missing IVs
+    df = df[df["mark_iv"].notna() & (df["mark_iv"] > 0)].copy()
+
+    # Only calls (puts carry same info via put-call parity; calls are more
+    # liquid ATM; mixing both can double-weight some strikes)
+    df = df[df["kind"] == "C"].copy()
+
+    # Maturity window: 7 days to 180 days
+    T_min = 7 / 365.25
+    T_max = 180 / 365.25
+    df = df[(df["T"] >= T_min) & (df["T"] <= T_max)].copy()
+
+    if df.empty:
+        raise ValueError(
+            "No valid option rows after maturity filter (7–180 days). "
+            "Check the option chain."
+        )
+
+    if atm_only:
+        df = df[(df["strike"] >= S0 * 0.80) & (df["strike"] <= S0 * 1.20)].copy()
+    else:
+        # Delta filter: compute approximate BS delta at mark_iv, keep if in range
+        def _delta_ok(row):
+            d = _bs_delta(S0, row["strike"], row["T"], r, q, row["mark_iv"], is_call=True)
+            return delta_filter[0] <= abs(d) <= delta_filter[1]
+
+        mask = df.apply(_delta_ok, axis=1)
+        df = df[mask].copy()
+
+    if df.empty:
+        raise ValueError(
+            "No option rows pass the delta / ATM filter. "
+            "Try widening delta_filter or setting atm_only=False."
+        )
+
+    # Build a list of (K, T, market_iv) tuples
+    # Group by expiry T (round to 4 decimals to cluster same-expiry options)
+    df["T_key"] = df["T"].round(4)
+    chain_rows = [(row["strike"], row["T_key"], row["mark_iv"])
+                  for _, row in df.iterrows()]
+
+    # Pre-group by expiry for batch FFT calls
+    from itertools import groupby
+    from operator import itemgetter
+
+    expiry_groups: dict[float, list[tuple[float, float]]] = {}
+    for K, T_key, miv in chain_rows:
+        expiry_groups.setdefault(T_key, []).append((K, miv))
+
+    n_contracts = len(chain_rows)
+    expiries = sorted(expiry_groups.keys())
+
+    # ------------------------------------------------------------------ #
+    # Step 2 — loss function                                              #
+    # ------------------------------------------------------------------ #
+    FELLER_PENALTY = 10.0
+
+    def loss(params_arr: np.ndarray) -> float:
+        kappa, theta, xi, rho, v0 = params_arr
+
+        # Hard guard against degenerate params that crash FFT
+        if kappa <= 0 or theta <= 0 or xi <= 0 or v0 <= 0:
+            return 1e9
+        if not (-1.0 < rho < 1.0):
+            return 1e9
+
+        sq_residuals: list[float] = []
+        for T_key in expiries:
+            rows_T = expiry_groups[T_key]
+            strikes_arr = np.array([r_[0] for r_ in rows_T])
+            market_ivs = np.array([r_[1] for r_ in rows_T])
+
+            try:
+                model_ivs = _heston_model_iv_batch(
+                    S0, strikes_arr, T_key, r, q,
+                    kappa, theta, xi, rho, v0,
+                )
+            except Exception:
+                return 1e9
+
+            valid = ~np.isnan(model_ivs)
+            if valid.sum() == 0:
+                continue
+
+            diff = model_ivs[valid] - market_ivs[valid]
+            sq_residuals.extend((diff ** 2).tolist())
+
+        if not sq_residuals:
+            return 1e9
+
+        base_loss = float(np.sum(sq_residuals))
+
+        # Soft Feller constraint: 2κθ ≥ ξ²
+        feller_violation = max(0.0, xi**2 - 2.0 * kappa * theta)
+        return base_loss + FELLER_PENALTY * feller_violation
+
+    # ------------------------------------------------------------------ #
+    # Step 3 — bounds + multi-start L-BFGS-B                            #
+    # ------------------------------------------------------------------ #
+    bounds = [
+        (0.1, 10.0),    # kappa
+        (0.01, 2.0),    # theta
+        (0.01, 3.0),    # xi
+        (-0.99, 0.99),  # rho
+        (0.01, 2.0),    # v0
+    ]
+
+    rng = np.random.default_rng(seed)
+    best_result = None
+    best_loss = np.inf
+
+    # Seed the first start near a sensible "crypto" prior to speed convergence
+    starts = []
+    # Rough ATM IV from chain
+    atm_iv_approx = float(df.loc[
+        (df["strike"] - S0).abs().idxmin(), "mark_iv"
+    ]) if len(df) > 0 else 0.80
+    v0_prior = atm_iv_approx**2  # variance ≈ IV²
+    starts.append([2.0, v0_prior, 0.5 * atm_iv_approx, -0.3, v0_prior])
+
+    # Additional random starts
+    for _ in range(n_starts - 1):
+        p0 = [
+            rng.uniform(lo, hi) for lo, hi in bounds
+        ]
+        starts.append(p0)
+
+    for p0 in starts:
+        try:
+            res = minimize(
+                loss,
+                x0=np.array(p0, dtype=float),
+                method="L-BFGS-B",
+                bounds=bounds,
+                options={"maxiter": 500, "ftol": 1e-12, "gtol": 1e-8},
+            )
+        except Exception as exc:
+            warnings.warn(f"calibrate_heston_from_options: optimizer failed ({exc})")
+            continue
+
+        if res.fun < best_loss:
+            best_loss = res.fun
+            best_result = res
+
+    if best_result is None:
+        raise RuntimeError(
+            "calibrate_heston_from_options: all optimizer starts failed. "
+            "Check option chain quality."
+        )
+
+    kappa, theta, xi, rho, v0 = best_result.x
+    kappa = float(kappa)
+    theta = float(theta)
+    xi = float(xi)
+    rho = float(rho)
+    v0 = float(v0)
+
+    # ------------------------------------------------------------------ #
+    # Step 4 — Feller condition report                                   #
+    # ------------------------------------------------------------------ #
+    feller_lhs = 2.0 * kappa * theta
+    feller_rhs = xi**2
+    if feller_lhs < feller_rhs:
+        warnings.warn(
+            f"calibrate_heston_from_options: Feller condition violated — "
+            f"2*kappa*theta = {feller_lhs:.4f} < xi^2 = {feller_rhs:.4f}. "
+            f"Variance process can reach zero. "
+            f"n_contracts={n_contracts}, loss={best_loss:.6f}"
+        )
+    else:
+        print(
+            f"[calibrate_heston_from_options] Converged. "
+            f"n_contracts={n_contracts}, loss={best_loss:.6f}, "
+            f"Feller satisfied (2κθ={feller_lhs:.3f} ≥ ξ²={feller_rhs:.3f})"
+        )
+
+    return HestonParams(kappa=kappa, theta=theta, xi=xi, rho=rho, v0=v0)
+
+
 # --- Spot-based calibration (moment-matching on realized variance) ---
 
 def calibrate_heston_from_spot(
