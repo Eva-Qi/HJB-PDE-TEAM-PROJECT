@@ -114,7 +114,16 @@ The Part E regime-aware vs single-regime execution test went through four distin
 
 Root cause identified at V3: **mean cost is the wrong metric for this test.** The Almgren-Chriss HJB objective is `cost + λ·risk`, not cost alone. Regime-awareness is designed to reduce exposure during high-volatility periods — that benefit shows up in tail risk metrics (VaR₉₅, CVaR₉₅, objective value), not necessarily in mean cost.
 
-**V4 (risk-side metrics, in flight)**: a parallel worker is testing VaR₉₅, CVaR₉₅, and AC objective value as the comparison metric. Results should land in `data/paired_regime_aware_v2_results.json`. **That file does not exist as of 2026-04-20.** This section will be updated when V4 results land. The hypothesis: regime-awareness provides statistically significant tail-risk reduction even when mean cost is statistically indistinguishable.
+**V4 (risk-side metrics, landed)**: paired test on VaR₉₅, CVaR₉₅, and AC objective (cost + λ·var). Results saved to `data/paired_regime_aware_v2_results.json` (commit `f6c3ace`):
+
+| Metric | regime-aware | single-regime | diff | p-value | Significant at α=0.05 |
+|--------|--------------|---------------|------|---------|-----------------------|
+| mean cost | 107.79 | 104.05 | +3.74 | 0.834 | no (reproduces V3) |
+| **objective** (cost + λ·var) | **244.64** | **288.49** | **−43.85 (−15.2%)** | **0.023** | **yes** |
+| **VaR₉₅** | **19,098.6** | **22,184.5** | **−3,086 (−13.9%)** | **<0.0001** | **yes** |
+| **CVaR₉₅** | **23,715.4** | **27,577.1** | **−3,862 (−14.0%)** | **<0.0001** | **yes** |
+
+**V4 conclusion — the hypothesis was correct**: regime-aware execution provides statistically significant tail-risk reduction (VaR₉₅ and CVaR₉₅ both drop ~14% with p<0.0001) and lowers the AC objective by 15% (p=0.023) even though mean cost is indistinguishable. This is consistent with AC theory: the framework optimizes (cost + λ·risk), not cost alone, and regime-awareness pays off in the 10% risk_off regime where pooled params under-price volatility and produce fatter cost tails. Mean cost is the wrong metric to evaluate Part E; risk-side metrics are the right ones. Part E now has a clean, publishable positive finding.
 
 ---
 
@@ -227,7 +236,7 @@ Adding sentiment dilutes regime separation by a factor of ~5.6 (spread_ratio=0.1
 | AC beats TWAP at 10 BTC (mean cost) | no | paired test p=0.88 | — |
 | AC beats TWAP at 1000+ BTC (mean cost) | high | paired test p<0.0001, 50% savings | — |
 | Regime-aware beats single-regime (mean cost) | no | V1 p≈0.84 (magic scaling); V2 p=0.84 (Yuhao fix); V3 p=0.84 (98d) | 4 data points, all null |
-| Regime-aware reduces tail risk (VaR/CVaR) | pending | V4 in flight — file not yet present | Will update when `paired_regime_aware_v2_results.json` lands |
+| Regime-aware reduces tail risk (VaR/CVaR) | 🟢 high | V4 paired test commit `f6c3ace`: VaR₉₅ −14% (p<0.0001), CVaR₉₅ −14% (p<0.0001), objective −15% (p=0.023) | |
 | Full Truncation scheme correct | high | Z-injection test at 1e-12 precision | — |
 | Fees are modeled correctly | high | closed-form identity test | — |
 
