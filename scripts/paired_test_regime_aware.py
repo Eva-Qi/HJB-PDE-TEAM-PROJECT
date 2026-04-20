@@ -38,8 +38,11 @@ from montecarlo.cost_analysis import paired_strategy_test
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-# Use first 7 days of January 2026 for speed — enough trades for HMM
-DATA_FILES = sorted(DATA_DIR.glob("BTCUSDT-aggTrades-2026-01-0*.csv"))
+# Use ALL 98 days (Jan-Apr 2026). Earlier version used 7 days and found
+# weak regime separation (~8% sigma spread) → paired test p=0.84. With
+# Yuhao's sigma*1e-8 fix + full data, univariate HMM finds 250% spread
+# (see scripts/compare_hmm_features.py output) so p should now reject.
+DATA_FILES = sorted(DATA_DIR.glob("BTCUSDT-aggTrades-2026-*.csv"))
 
 N_PATHS = 10_000
 SEED = 42
@@ -54,18 +57,17 @@ LAM = 1e-6
 
 
 def load_one_month_data():
-    """Load first 7 days of January 2026 aggTrades using the project's loader."""
+    """Load full 98-day window of aggTrades (2026-01-01 to 2026-04-08)."""
     if not DATA_FILES:
         raise FileNotFoundError(
-            f"No 2026-01-0* CSV files found in {DATA_DIR}. "
+            f"No BTCUSDT-aggTrades-2026-*.csv files found in {DATA_DIR}. "
             "Run `python -m calibration.download_binance` first."
         )
-    # Use calibrated_params' loader — handles microsecond timestamps correctly
     from calibration.data_loader import load_trades
     trades = load_trades(
         DATA_DIR,
         start="2026-01-01",
-        end="2026-01-07",
+        end="2026-04-08",
     )
     return trades
 
