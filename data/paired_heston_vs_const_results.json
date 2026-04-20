@@ -1,0 +1,56 @@
+[
+  {
+    "vol_label": "low_vol",
+    "sigma": 0.2,
+    "mean_const": 40.88576549905207,
+    "mean_heston": 29.636191720845563,
+    "mean_diff": -11.249573778206544,
+    "t_pval": 0.3306100913472787,
+    "boot_pval": 0.315,
+    "significant_at_0.05": false,
+    "n_paths": 10000,
+    "heston_params": {
+      "kappa": 2.0,
+      "theta": 0.04,
+      "xi": 0.3,
+      "rho": -0.3,
+      "v0": 0.04
+    }
+  },
+  {
+    "vol_label": "mid_vol",
+    "sigma": 0.3,
+    "mean_const": 24.64837280588047,
+    "mean_heston": 5.687899032211338,
+    "mean_diff": -18.960473773669026,
+    "t_pval": 0.32705938130469947,
+    "boot_pval": 0.3124,
+    "significant_at_0.05": false,
+    "n_paths": 10000,
+    "heston_params": {
+      "kappa": 2.0,
+      "theta": 0.09,
+      "xi": 0.5,
+      "rho": -0.3,
+      "v0": 0.09
+    }
+  },
+  {
+    "vol_label": "high_vol",
+    "sigma": 0.5,
+    "mean_const": -8.281279452667386,
+    "mean_heston": -39.03039788970193,
+    "mean_diff": -30.74911843703456,
+    "t_pval": 0.3256043247901257,
+    "boot_pval": 0.3128,
+    "significant_at_0.05": false,
+    "n_paths": 10000,
+    "heston_params": {
+      "kappa": 2.0,
+      "theta": 0.25,
+      "xi": 0.8,
+      "rho": -0.3,
+      "v0": 0.25
+    }
+  }
+]
