@@ -1,0 +1,33 @@
+{
+  "n_paths": 10000,
+  "mean_single": 104.05147939334617,
+  "mean_aware": -225.79499171303866,
+  "mean_diff": -329.84647110638457,
+  "t_statistic": -0.3433514945599601,
+  "t_pvalue": 0.7313412642721493,
+  "bootstrap_pvalue": 0.7278,
+  "significant_at_0.05": false,
+  "regime_sigmas": {
+    "risk_on": 0.9835966152872092,
+    "risk_off": 1.1559676000995263
+  },
+  "stationary_probs": {
+    "risk_on": 0.5844504133934523,
+    "risk_off": 0.4155495866065478
+  },
+  "regime_gammas": {
+    "risk_on": 9.835966152872093e-09,
+    "risk_off": 1.1559676000995264e-08,
+    "base": 2.6723421626313173
+  },
+  "regime_etas": {
+    "risk_on": 9.83596615287209e-07,
+    "risk_off": 1.1559676000995262e-06,
+    "base": 2.7616375036136025e-05
+  },
+  "weights_used": {
+    "risk_on": 0.5844504133934523,
+    "risk_off": 0.4155495866065478
+  },
+  "verdict": "COSMETIC: not significant at alpha=0.05. Regime-awareness provides no statistically detectable benefit over single pooled params. The sigma*1e-8 / sigma*1e-6 scaling hack likely drives this null result."
+}
