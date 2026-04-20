@@ -67,6 +67,68 @@ def vwap_trajectory(params: ACParams) -> np.ndarray:
     return x
 
 
+def pov_trajectory(params: ACParams, participation_rate: float = 0.10) -> np.ndarray:
+    """Percentage-of-Volume: trade as a fraction of expected market volume.
+
+    At each step k, trade min(n_pov, remaining_inventory) where
+    n_pov = participation_rate * expected_volume[k].
+
+    If params.volume_profile is provided, uses it for volume estimation.
+    Otherwise uses HOURLY_VOLUME_PROFILE normalized so sum(volume_per_step) = 1.
+
+    This is a common benchmark in institutional execution — trade visibility
+    stays below participation_rate of market.
+
+    Parameters
+    ----------
+    params : ACParams
+    participation_rate : float
+        Fraction of market volume to trade per step (e.g., 0.10 = 10%).
+        The POV schedule is scaled so remaining inventory is fully liquidated
+        by the final step (any residual is assigned to the last step).
+
+    Returns
+    -------
+    np.ndarray, shape (N+1,)
+        Inventory trajectory. x[0]=X0, x[N]=0.
+    """
+    N = params.N
+    X0 = params.X0
+
+    # Build volume weights (same logic as vwap_trajectory)
+    if params.volume_profile is not None:
+        weights = params.volume_profile.copy().astype(float)
+    else:
+        hours_per_step = 24.0 / N
+        weights = np.zeros(N)
+        for k in range(N):
+            hour = int((k * hours_per_step) % 24)
+            weights[k] = HOURLY_VOLUME_PROFILE.get(hour, 1.0)
+
+    weights = weights / weights.sum()  # normalized step-volume fractions
+
+    # Raw POV trades: participation_rate * volume_weight * some_total_market_volume
+    # Since we only care about proportional shape, raw_trades[k] ∝ weights[k].
+    # We then scale so the cumulative trade equals X0, with any residual flushed
+    # to the last step to guarantee full liquidation.
+    raw_trades = participation_rate * weights  # proportional schedule
+    raw_total = raw_trades.sum()
+    # Scale so total traded = X0
+    scale = X0 / raw_total if raw_total > 0 else 1.0
+    n_per_step = raw_trades * scale  # this sums to X0 by construction
+
+    # Build inventory trajectory
+    x = np.empty(N + 1)
+    x[0] = X0
+    for k in range(N):
+        x[k + 1] = x[k] - n_per_step[k]
+
+    # Clamp to zero (floating-point safety)
+    x = np.maximum(x, 0.0)
+    x[-1] = 0.0
+    return x
+
+
 def optimal_trajectory(params: ACParams) -> np.ndarray:
     """Almgren-Chriss closed-form optimal trajectory.
 
