@@ -58,6 +58,10 @@ class ACParams:
     lam : float
         Risk aversion parameter (lambda). Higher = more risk-averse
         (trades faster to reduce variance).
+    fee_bps : float
+        Exchange fee in basis points per notional traded. Default 0.0
+        (fees excluded from cost). Binance BTCUSDT spot taker = 7.5 bps.
+        Applied as fee_bps/1e4 * S0 * |n_k| per trade.
     volume_profile : np.ndarray or None
         Normalized intraday volume weights for VWAP. Length N.
         If None, uniform (TWAP).
@@ -73,6 +77,7 @@ class ACParams:
     eta: float
     alpha: float
     lam: float
+    fee_bps: float = 0.0
     volume_profile: Optional[np.ndarray] = field(default=None, repr=False)
 
     @property

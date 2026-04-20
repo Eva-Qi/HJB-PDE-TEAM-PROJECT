@@ -43,6 +43,31 @@ def temporary_impact(
     return eta * np.abs(v) ** alpha * np.sign(v)
 
 
+def execution_fees(x: np.ndarray, params: ACParams) -> float:
+    """Exchange fees for a given inventory trajectory.
+
+    Fee per trade = (fee_bps / 1e4) * S0 * |n_k|. For a full liquidation
+    (x[0]=X0 → x[N]=0) with monotone trajectory, this collapses to
+    (fee_bps / 1e4) * S0 * X0, i.e. a constant across strategies.
+
+    Parameters
+    ----------
+    x : np.ndarray, shape (N+1,)
+        Inventory trajectory.
+    params : ACParams
+        Model parameters. Uses params.fee_bps (0.0 → no fees).
+
+    Returns
+    -------
+    float
+        Total fees in dollars.
+    """
+    if params.fee_bps == 0.0:
+        return 0.0
+    n_k = x[:-1] - x[1:]
+    return float((params.fee_bps / 1e4) * params.S0 * np.sum(np.abs(n_k)))
+
+
 def execution_cost(x: np.ndarray, params: ACParams) -> float:
     """Total expected execution cost for a given inventory trajectory.
 
@@ -56,17 +81,21 @@ def execution_cost(x: np.ndarray, params: ACParams) -> float:
     Returns
     -------
     float
-        Total cost = permanent impact cost + temporary impact cost.
+        Total cost = permanent impact + temporary impact + exchange fees.
 
     Notes
     -----
     Cost = sum_{k=0}^{N-1} [ n_k * (gamma * sum_{j<k} n_j)
                               + tau * h(n_k/tau) * n_k/tau ]
+           + (fee_bps / 1e4) * S0 * sum_k |n_k|
 
     Uses the Almgren-Chriss (2000) convention: trade k's permanent
     impact affects trades k+1, k+2, ... but NOT trade k itself.
     This matches the MC implementation-shortfall formula where S_k
     is the price *before* trade k executes.
+
+    Exchange fees (params.fee_bps) are added on top of impact costs.
+    Default fee_bps=0 preserves pre-fee cost behavior for legacy tests.
     """
     dt = params.dt
     n_k = x[:-1] - x[1:]  # trade list: shares sold each step
@@ -81,7 +110,10 @@ def execution_cost(x: np.ndarray, params: ACParams) -> float:
     h_v = temporary_impact(v_k, params.eta, params.alpha)
     temp_cost = np.sum(h_v * n_k)
 
-    return float(perm_cost + temp_cost)
+    # Exchange fees (constant for any full liquidation if fee_bps>0)
+    fee_cost = execution_fees(x, params)
+
+    return float(perm_cost + temp_cost + fee_cost)
 
 
 def execution_risk(x: np.ndarray, params: ACParams) -> float:
