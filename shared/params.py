@@ -174,7 +174,9 @@ def almgren_chriss_closed_form(
     # Expected cost via direct summation (more transparent):
     # Permanent: sum_k gamma * n_k * S (≈ 0.5 * gamma * X0^2 for small impact)
     # Temporary: sum_k eta * (n_k/tau)^alpha * n_k = eta/tau * sum_k n_k^2
-    perm_cost = params.gamma * np.sum(n_k * np.cumsum(n_k))
+    
+    prior_cumulative_n = np.concatenate([[0.0], np.cumsum(n_k[:-1])])
+    perm_cost = params.gamma * np.sum(n_k * prior_cumulative_n)
     temp_cost = params.eta / dt * np.sum(n_k**2)
     expected_cost = perm_cost + temp_cost
 
