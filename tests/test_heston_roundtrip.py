@@ -212,36 +212,10 @@ class TestHestonRoundTrip:
             f"outside generous [0.5, 8.0] band"
         )
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason=(
-            "REAL CALIBRATION FINDING: The rho estimator in calibrate_heston_from_spot() "
-            "correlates log-returns with CHANGES in rolling realized variance. Because "
-            "the rolling GK series uses 24-bar overlapping windows, consecutive rv values "
-            "share 23/24 bars — the delta_rv series is dominated by entry/exit noise, not "
-            "true variance dynamics. With 2000 bars × 300s bars, the rho estimate "
-            "collapses to near-zero (empirically ~[-0.01, +0.023] across seeds) regardless "
-            "of true rho=-0.7. The sign is 50/50 random noise. This is a fundamental "
-            "methodological limitation: rho cannot be reliably recovered from OHLC data "
-            "alone via this estimator. The calibrator should document this or use a "
-            "different estimator (e.g., Hansen-Lunde realized covariance)."
-        ),
-    )
-    def test_recovers_sign_of_rho(self):
-        """True rho=-0.7 → recovered rho is strictly negative.
-
-        A wrong-sign rho would mean the leverage effect is inverted.
-        MARKED xfail: empirical testing shows the GK-based rho estimator
-        returns near-zero values (~0 ± 0.03) regardless of true rho when
-        rolling overlapping windows are used. The sign test has ~50% chance
-        of passing by luck. This is a REAL finding about the calibrator.
-        See xfail reason for full diagnosis.
-        """
-        rec_rho = self.recovered.rho
-        assert rec_rho < 0, (
-            f"rho sign: true is negative (-0.7), recovered rho={rec_rho:.3f} "
-            f"is non-negative — leverage effect direction is wrong."
-        )
+    # DELETED test_recovers_sign_of_rho per 2026-04-19 audit. It was a
+    # ~50% coin flip (xfail strict=False) that documented a broken
+    # calibrator without enforcing anything. The finding is captured in
+    # FINDINGS.md (§1.4) and in Heston round-trip comment blocks.
 
     @pytest.mark.xfail(
         strict=False,
@@ -267,39 +241,8 @@ class TestHestonRoundTrip:
             f"outside [0.25, 1.0] factor-of-2 band"
         )
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason=(
-            "With xi=0 the variance process is deterministic and Var(v)≈0, "
-            "so the xi estimator should collapse to ~0. However, GK estimator "
-            "noise can inflate Var(v) slightly, pushing xi up. If this xfails "
-            "at <0.3, the noise floor of GK is higher than expected."
-        ),
-    )
-    def test_zero_vol_of_vol_recovers_low_xi(self):
-        """Simulate with xi=0 (deterministic vol). Recovered xi should be < 0.3.
-
-        When the underlying variance is truly deterministic (xi=0), the
-        only variance in the GK realized-variance series comes from
-        estimator noise (finite bar sampling). That noise floor should
-        not exceed xi≈0.3 for 2000 bars of 5-min data. A higher recovery
-        indicates the moment-estimator is picking up spurious variability
-        — a useful calibration reliability finding even if it 'fails'.
-        """
-        degenerate = HestonParams(
-            kappa=5.0,
-            theta=0.09,
-            xi=0.0,    # deterministic variance
-            rho=0.0,
-            v0=0.09,
-        )
-        ohlc = _simulate_to_ohlc(degenerate, seed=99)
-        rec = calibrate_heston_from_spot(
-            ohlc,
-            freq_seconds=BAR_SECONDS,
-            window_bars=WINDOW_BARS,
-        )
-        assert rec.xi < 0.30, (
-            f"xi=0 simulation: recovered xi={rec.xi:.3f} >= 0.3 — "
-            f"GK noise floor is inflating vol-of-vol estimate."
-        )
+    # DELETED test_zero_vol_of_vol_recovers_low_xi per 2026-04-19 audit.
+    # Weaker documentation of the same fact covered by the structural
+    # test_zero_xi_produces_deterministic_variance_across_paths in
+    # test_heston_simulation.py, which checks the true invariant
+    # (Var_across_paths[v] = 0 when xi = 0) directly.

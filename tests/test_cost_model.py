@@ -25,8 +25,8 @@ class TestImpactFunctions:
         result = permanent_impact(v, gamma)
         assert np.allclose(result, gamma * v)
 
-    def test_permanent_impact_scalar(self):
-        assert permanent_impact(500.0, 2e-5) == pytest.approx(0.01)
+    # DELETED test_permanent_impact_scalar per 2026-04-19 audit — degenerate
+    # subset of test_permanent_impact_linear.
 
     def test_temporary_impact_linear(self):
         """alpha=1: h(v) = eta * v."""
@@ -51,15 +51,8 @@ class TestImpactFunctions:
 class TestCostAnalysis:
     """Tests for compute_metrics and compare_strategies (previously untested)."""
 
-    def test_constant_costs(self):
-        """All-same costs: mean=VaR=CVaR."""
-        costs = np.full(100, 5000.0)
-        m = compute_metrics(costs)
-        assert m.mean == pytest.approx(5000.0)
-        assert m.std == pytest.approx(0.0, abs=1e-10)
-        assert m.var_95 == pytest.approx(5000.0)
-        assert m.cvar_95 == pytest.approx(5000.0)
-        assert m.n_paths == 100
+    # DELETED test_constant_costs per 2026-04-19 audit — tests numpy.percentile
+    # on a constant array (arithmetic identity, not code invariant).
 
     def test_cvar_geq_var(self):
         """CVaR >= VaR always (Expected Shortfall >= Value-at-Risk)."""

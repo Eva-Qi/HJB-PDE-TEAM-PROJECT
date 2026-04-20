@@ -14,16 +14,15 @@ from montecarlo.strategies import twap_trajectory, optimal_trajectory
 
 
 class TestGBMPaths:
-    """Test pure GBM path simulation."""
+    """Test pure GBM path simulation.
 
-    def test_initial_price(self):
-        """All paths start at S0."""
-        S = simulate_gbm_paths(DEFAULT_PARAMS, n_paths=100)
-        assert np.allclose(S[:, 0], DEFAULT_PARAMS.S0)
-
-    def test_shape(self):
-        S = simulate_gbm_paths(DEFAULT_PARAMS, n_paths=100)
-        assert S.shape == (100, DEFAULT_PARAMS.N + 1)
+    DELETED per 2026-04-19 audit (4 tests):
+      test_initial_price       — literal assignment S[:,0] = S0
+      test_shape               — numpy allocation
+      test_positive_prices     — covered tighter by test_high_vol_positive_prices
+      test_reproducibility     — tests numpy RNG, not project code
+    Surviving: test_antithetic_mean_zero_noise (tight structural).
+    """
 
     def test_antithetic_mean_zero_noise(self):
         """Antithetic variates: Z and -Z should give paths centered on E[S]."""
@@ -33,17 +32,6 @@ class TestGBMPaths:
         # With mu=0, E[S_T] ≈ S0 (for small sigma^2*T)
         rel_err = abs(mean_terminal - DEFAULT_PARAMS.S0) / DEFAULT_PARAMS.S0
         assert rel_err < 0.02, f"Mean terminal price {mean_terminal:.2f} too far from S0"
-
-    def test_positive_prices(self):
-        """All prices should be positive (GBM)."""
-        S = simulate_gbm_paths(DEFAULT_PARAMS, n_paths=1000)
-        assert np.all(S > 0), "GBM prices should be positive"
-
-    def test_reproducibility(self):
-        """Same seed gives same paths."""
-        S1 = simulate_gbm_paths(DEFAULT_PARAMS, n_paths=100, seed=123)
-        S2 = simulate_gbm_paths(DEFAULT_PARAMS, n_paths=100, seed=123)
-        assert np.allclose(S1, S2)
 
 
 class TestExecutionSimulation:
@@ -84,26 +72,9 @@ class TestExecutionSimulation:
             f"({cf_cost:.2f}) by {rel_err*100:.1f}%"
         )
 
-    def test_optimal_objective_less_than_twap_mc(self):
-        """MC confirms: optimal has lower objective than TWAP."""
-        x_twap = twap_trajectory(DEFAULT_PARAMS)
-        x_opt = optimal_trajectory(DEFAULT_PARAMS)
-
-        _, costs_twap = simulate_execution(
-            DEFAULT_PARAMS, x_twap, n_paths=10000, seed=42
-        )
-        _, costs_opt = simulate_execution(
-            DEFAULT_PARAMS, x_opt, n_paths=10000, seed=42
-        )
-
-        # Objective = E[cost] + lam * Var[cost]
-        obj_twap = np.mean(costs_twap) + DEFAULT_PARAMS.lam * np.var(costs_twap)
-        obj_opt = np.mean(costs_opt) + DEFAULT_PARAMS.lam * np.var(costs_opt)
-
-        assert obj_opt < obj_twap, (
-            f"MC optimal objective ({obj_opt:.2f}) should be < "
-            f"TWAP objective ({obj_twap:.2f})"
-        )
+    # DELETED test_optimal_objective_less_than_twap_mc per 2026-04-19 audit
+    # — duplicates test_optimal_beats_twap_exact in test_new_features.py AND
+    # test_optimal_objective_less_than_twap in test_closed_form.py.
 
     def test_cost_has_positive_variance(self):
         """Execution cost should have nonzero variance (stochastic)."""

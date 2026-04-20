@@ -156,52 +156,10 @@ class TestRogersSatchell:
             # At 5-min bars either can slightly edge out the other by noise.
             pass
 
-    @pytest.mark.xfail(
-        reason="KNOWN at 5-min bars: GK drift-bias too small to detect. "
-               "Only appears at daily+ frequencies. Soft-deleted (xfail) "
-               "to document the finding without removing the test. Remove "
-               "xfail if bar frequency ever changes to daily.",
-        strict=False,
-    )
-    def test_gk_diverges_more_than_rs_under_drift_xfail(self):
-        """DOCUMENTED xfail: At 5-min bars, GK and RS are effectively
-        interchangeable under drift. This test asserts the TEXTBOOK
-        property (GK more drift-sensitive than RS) and is expected to
-        fail at this frequency. Kept in the suite as living documentation.
-
-        For the actual drift-invariance property, see
-        test_rs_drift_robust_while_gk_diverges.
-        """
-        sigma = 0.3
-        seed = 123
-        n_bars = 2000
-
-        def make_ohlc(drift: float) -> pd.DataFrame:
-            rng = np.random.default_rng(seed)
-            dt = 300.0 / (365.25 * 24 * 3600)
-            ticks_per_bar = 60
-            dt_tick = dt / ticks_per_bar
-            S = 100.0
-            rows = []
-            for _ in range(n_bars):
-                ticks = [S]
-                for _ in range(ticks_per_bar):
-                    S = S * np.exp(
-                        (drift - 0.5 * sigma ** 2) * dt_tick
-                        + sigma * np.sqrt(dt_tick) * rng.standard_normal()
-                    )
-                    ticks.append(S)
-                rows.append({"open": ticks[0], "high": max(ticks),
-                             "low": min(ticks), "close": ticks[-1]})
-            return pd.DataFrame(rows)
-
-        ohlc_nd = make_ohlc(drift=0.0)
-        ohlc_d = make_ohlc(drift=0.8)
-        rs_shift = abs(estimate_realized_vol_rs(ohlc_d) -
-                       estimate_realized_vol_rs(ohlc_nd)) / estimate_realized_vol_rs(ohlc_nd)
-        gk_shift = abs(estimate_realized_vol_gk(ohlc_d) -
-                       estimate_realized_vol_gk(ohlc_nd)) / estimate_realized_vol_gk(ohlc_nd)
-        assert gk_shift > rs_shift
+    # DELETED test_gk_diverges_more_than_rs_under_drift_xfail per 2026-04-19
+    # audit. 30+ lines duplicating test_rs_drift_robust_while_gk_diverges.
+    # The finding ("GK drift bias invisible at 5-min bars") is documented in
+    # that test's comment block — no need for a separate coin-flip xfail.
 
     def test_min_bars(self):
         ohlc = _make_ohlc(n_bars=1)
