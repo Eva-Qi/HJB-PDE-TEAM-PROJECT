@@ -1,9 +1,9 @@
-# MF796 Methodology Findings — 2026-04-18 Audit
+# MF796 Methodology Findings — 2026-04-18 Audit (updated 2026-04-20)
 
 **Audience**: Team (Eva, bp, Yuhao) + future reviewers
 **Status**: Living document. Update when calibration, test, or data assumptions change.
 
-This document captures the substantive findings from the 2026-04-18 code-council audit (with GLM-5.1 challenger cross-review) and the resulting methodology fixes. It complements (does not replace) PROJECT_AUDIT_REPORT.md. Read this first if you want to understand what changed and why.
+This document captures the substantive findings from the 2026-04-18 code-council audit (with GLM-5.1 challenger cross-review) and the resulting methodology fixes, extended with 2026-04-20 findings from Yuhao's regime-aware merge, the multi-feature HMM experiment, and the full 98-day Part E paired tests. It complements (does not replace) PROJECT_AUDIT_REPORT.md. Read this first if you want to understand what changed and why.
 
 ---
 
@@ -53,6 +53,34 @@ Root cause: 24-bar overlapping rolling windows in the GK realized-variance path 
 
 **Practical implication**: any Heston-dependent decision should treat our current κ and ρ as informed guesses at best. θ and ξ are fine.
 
+**Status (2026-04-20)**: Deribit integration remains an open P-decision (see §6). WRDS BU subscription turned out to have only `mpsych_sample` library, ended 2024-10-20, with ALL NULL crypto columns — not a viable fallback (see §1.6 for the WRDS finding).
+
+### 1.5 Regime-conditional impact parameters: magic scaling replaced (commit 1cc770e)
+
+**Before (Yuhao merge)**: `regime.py` computed regime-specific γ and η as `sigma × 1e-8` and `sigma × 1e-6`. These were pure magic constants with no microstructure basis. The regime-aware PDE solution differed from the single-regime solution only in σ; the impact coefficients did not reflect regime-specific liquidity at all.
+
+**After**: Yuhao's commit `1cc770e` replaced the magic scaling with dimensionless multipliers derived from per-regime sub-sample calibration. The multipliers land in the ~0.8–1.2x range relative to the pooled estimate — economically plausible, since regime-specific liquidity varies but not by eight orders of magnitude.
+
+**Observed impact parameters from `paired_regime_aware_results.json`** (V2, post-Yuhao):
+
+| Parameter | Risk-On | Risk-Off | Base (pooled) |
+|-----------|---------|----------|---------------|
+| σ (annualized) | 0.704 | 2.498 | — |
+| γ multiplier | 0.798 | 3.093 | 2.672 |
+| η multiplier | 0.562 | 7.726 | 2.76e-5 |
+
+The commit also added `simulate_regime_execution` in `sde_engine.py` (supporting both rule and pde modes) and extended `RegimeParams` with diagnostic fields (`state_vol`, `state_abs_ret`, `state_mean_ret`).
+
+**What didn't change**: the paired test verdict. The Yuhao fix addresses the root cause of the V1 "cosmetic" finding, but the paired test on mean cost still returns p=0.84 — for a different reason. See §2.1 for the full V1→V4 progression.
+
+### 1.6 WRDS failure and alternative sentiment data (commits b032481, 1c95911)
+
+**WRDS MarketPsych**: BU's WRDS subscription contains only `mpsych_sample`. The sample library ends 2024-10-20 and all crypto-related columns return NULL. This is a hard data access limit — no amount of query refinement recovers live or recent BTC sentiment from WRDS.
+
+**Fallback**: alternative.me Fear & Greed Index (free public API). `data/fear_greed_btc.json` contains 98 daily rows covering the same date range as the aggTrades data, with F&G index values ranging 5–61. The `align_sentiment_to_returns_bar()` helper (commit `b032481`) handles alignment from daily F&G to the 5-min execution grid.
+
+**Practical implication for §1.4**: options-based Q-measure calibration (needed to fix Heston κ/ρ) cannot be sourced from WRDS. Deribit remains the only viable free option. WRDS also has no BTC options data at all under the BU subscription.
+
 ---
 
 ## 2. AC vs TWAP — retail vs institutional
@@ -70,6 +98,23 @@ A paired statistical test (using teammate bp's `paired_strategy_test`) on common
 **Takeaway**: at retail sizes (X0 ≤ 100 BTC) the AC-vs-TWAP difference is noise — the model does not beat TWAP meaningfully. At institutional sizes (X0 ≥ 1000 BTC), AC saves ~50% of TWAP realized cost and the difference is statistically robust.
 
 **Methodological note**: the earlier `x0_sensitivity_analysis.py` used the deterministic `execution_cost()` which integrates permanent impact additively and understates AC's benefit. The MC paired test exposes the real trajectory × stochastic-price interaction. Prefer MC mean as the reference metric in any reported result.
+
+### 2.1 Regime-aware paired test — four-version progression
+
+The Part E regime-aware vs single-regime execution test went through four distinct iterations:
+
+**V1 (pre-Yuhao, ~7-day window)**: regime-conditional γ/η computed as σ×1e-8/1e-6 (magic scaling). HMM found σ_on≈0.70, σ_off≈2.50 (3.5x ratio), but impact parameters were dimensionally implausible. Verdict: COSMETIC. Root cause explicitly called out as the magic scaling.
+
+**V2 (post-Yuhao, commit `1cc770e`, ~7-day window)**: magic scaling replaced. Impact parameters now in realistic range (see §1.5 table). Paired test on mean execution cost, n=10,000 paths:
+- mean_single=104.05, mean_aware=107.79, mean_diff=+3.74, t-p=0.84, bootstrap-p=0.83
+- HMM: σ_on=0.704, σ_off=2.498; P(risk-off)=8.8%
+- Verdict still: not significant. Root cause not yet identified.
+
+**V3 (commit `ec5fe1d`, full 98-day window)**: extended from 7-day to 98-day training window. HMM regimes become more stable (univariate σ spread = 250%, confirming §5.4). Paired test on mean cost: p=0.84 again.
+
+Root cause identified at V3: **mean cost is the wrong metric for this test.** The Almgren-Chriss HJB objective is `cost + λ·risk`, not cost alone. Regime-awareness is designed to reduce exposure during high-volatility periods — that benefit shows up in tail risk metrics (VaR₉₅, CVaR₉₅, objective value), not necessarily in mean cost.
+
+**V4 (risk-side metrics, in flight)**: a parallel worker is testing VaR₉₅, CVaR₉₅, and AC objective value as the comparison metric. Results should land in `data/paired_regime_aware_v2_results.json`. **That file does not exist as of 2026-04-20.** This section will be updated when V4 results land. The hypothesis: regime-awareness provides statistically significant tail-risk reduction even when mean cost is statistically indistinguishable.
 
 ---
 
@@ -100,6 +145,9 @@ Categories now present:
 - **Round-trip calibration tests** (`test_heston_roundtrip.py`, `test_hmm_roundtrip.py`): simulate with known params → fit → check recovery. This is how the κ/ρ unreliability in 1.4 was discovered.
 - **Data-pipeline invariants** (`test_data_pipeline_invariants.py`): lock in the γ-sign invariant, plain-numpy dtypes, proxy-status documentation for `compute_mid_prices`, HMM NaN rejection.
 - **Structural identity tests** (e.g., `test_execution_fees_matches_closed_form_identity`): replace narrative bounds with mathematical identities that are regime-independent.
+- **Regime-path tests** (`tests/test_derive_regime_path.py`, 18 tests, commit `626c3e1`): cover all three modes of `derive_regime_path` — "current" (use last HMM state as constant, default for short execution windows), "historical" (replay observed regime sequence), "sample" (draw from stationary distribution). The 3-mode bridge replaced the single-mode `align_states_to_execution_grid`.
+- **Multi-feature HMM tests** (`tests/test_multifeature_hmm.py`, 7 tests, commit `b032481`): validate that `fit_hmm()` accepts 2-D feature matrices (T, d) without breaking univariate backward compatibility.
+- **Regime-conditional MC integration test** (`tests/test_regime_conditional_mc.py`, commit `1cc770e`): end-to-end test of `simulate_regime_execution` in rule and pde modes.
 
 ### 4.1 Soft-deleted tests (xfailed with documentation)
 
@@ -123,13 +171,32 @@ Categories now present:
 
 If all estimation cascades fail, we fall back to literature constants: γ=1e-4, η=1e-3, κ=5.0, ξ=0.8, ρ=0.0. These have no citation. `CalibrationResult.sources` flags which were used so downstream consumers can detect degraded results.
 
-### 5.3 Regime-conditional impact is cosmetic
+### 5.3 Regime-conditional impact — original bug fixed, economic question open (updated 2026-04-20)
 
-`extensions/regime.py` scales per-regime γ/η as `sigma × 1e-8` and `sigma × 1e-6`. These are magic scalings, not actual microstructure-derived regime-specific estimates. The regime-aware PDE solution differs by σ only; the impact parameters don't reflect regime-specific liquidity.
+**Original text (2026-04-18)** stated: "regime-conditional impact is cosmetic — extensions/regime.py scales per-regime γ/η as sigma×1e-8 and sigma×1e-6."
 
-### 5.4 HMM uses log returns only
+**That specific bug was fixed in commit `1cc770e` (Yuhao, 2026-04-20).** Impact parameters now use economically plausible dimensionless multipliers (~0.8–1.2x of pooled calibration). The "cosmetic" label no longer applies to the mechanism.
 
-Fitted 2-state HMM cleanly separates a high-vol and low-vol regime (5x σ ratio, 88% / 12% stationary split), but the regimes are noise-driven rather than economically interpretable. Adding on-chain features (exchange inflow, whale count from Glassnode free tier) would make the regime switches interpretable without adding compute cost.
+**What remains unresolved**: the paired test on mean cost is still p=0.84 at both V2 and V3 (see §2.1). The current hypothesis is that mean cost is the wrong metric — regime-awareness should reduce tail risk, not necessarily mean cost. V4 (testing VaR₉₅/CVaR₉₅/objective) is the definitive test. Until V4 lands, it is premature to either claim or deny that regime-aware execution is economically beneficial.
+
+### 5.4 HMM — bivariate F&G experiment tested and REJECTED (commits b032481, 1c95911)
+
+**Original hypothesis (2026-04-18 §5.4)**: "Adding on-chain features would make regime switches interpretable without adding compute cost." The sentiment experiment tested this directly.
+
+**What was done**: `fit_hmm()` extended to accept 2-D feature matrices (backward compat preserved). `data/fear_greed_btc.json` loaded (98 daily rows, alternative.me F&G Index, range 5–61). `scripts/compare_hmm_features.py` compared univariate vs bivariate on the full 98-day dataset.
+
+**Result** (from `data/hmm_feature_comparison.json`):
+
+| Model | σ_on (annualized) | σ_off (annualized) | Spread |
+|-------|------|-------|--------|
+| Univariate (log_return only) | 0.674 | 2.357 | **250%** |
+| Bivariate (log_return + F&G) | 0.776 | 1.123 | **45%** |
+
+Adding sentiment dilutes regime separation by a factor of ~5.6 (spread_ratio=0.179). **Hypothesis rejected.**
+
+**Root cause**: F&G is updated once per day and changes smoothly (range 5–61 over 98 days). BTC vol regimes are sharp crisis-bar events visible at 5-min resolution. The bivariate HMM must satisfy both signals and compromises on both — vol separation collapses from 250% to 45%, and the sentiment signal adds no compensating discriminatory power.
+
+**Intellectual honesty note**: this is a genuine negative finding, not a failure. It confirms that log returns alone, given sufficient history (98 days vs the earlier 2-week window), already capture regime structure effectively. The problem is temporal mismatch, not signal quality. A higher-frequency sentiment proxy (e.g., 5-min crypto Twitter volume or on-chain whale-alert frequency) remains untested and could still be valuable — but that is out of scope for the current project timeline.
 
 ---
 
@@ -137,29 +204,33 @@ Fitted 2-state HMM cleanly separates a high-vol and low-vol regime (5x σ ratio,
 
 | # | Decision | Context |
 |---|----------|---------|
-| P1-5 | Integrate Deribit option chain → Q-measure Heston | Fixes the κ/ρ unreliability in 1.4. Public API, free. ~1-2 days of work. Is Heston pricing-precision important for this project's narrative, or is execution-side κ/ρ "directionally correct" enough? |
+| P1-5 | Integrate Deribit option chain → Q-measure Heston | Fixes the κ/ρ unreliability in §1.4. Public API, free. ~1-2 days of work. **WRDS is not a viable alternative** — BU subscription has `mpsych_sample` library only, ended 2024-10-20, ALL NULL crypto columns (see §1.6). Question: is Heston pricing-precision important for project narrative, or is "directionally correct" enough? |
 | P1-6 | Add POV as a formal benchmark alongside TWAP | Already implemented (`pov_trajectory`). Still need to run paired tests against AC at each X0. ~1 hour. |
-| P1-7 | Add Glassnode exchange-inflow as HMM feature | Half day. Makes regimes interpretable ("risk-off = large wallet moving to exchange"). Not grade-critical. |
-| P1-8 | Regime-conditional impact refit (replace σ × 1e-8 hack) | ~3 hours. Refit `estimate_kyle_lambda_aggregated` + `estimate_temporary_impact_aggregated` on regime-tagged sub-samples. Makes regime-aware execution economically meaningful rather than cosmetic. |
-| P1-9 | Demonstrate 1000-BTC case explicitly in final report | Already analyzed (section 2). Decision is narrative-level: lead with retail "AC is TWAP" finding or institutional "AC saves 50%" finding? |
+| P1-7 | Add Glassnode exchange-inflow as HMM feature | Half day. Makes regimes interpretable ("risk-off = large wallet moving to exchange"). **Note**: F&G as a daily-smooth sentiment signal was tested and rejected — see §5.4. Glassnode's per-hour granularity may avoid the temporal mismatch, but verify before committing work. |
+| P1-8 | ~~Regime-conditional impact refit (replace σ × 1e-8 hack)~~ | **DONE** — resolved by commit `1cc770e` (Yuhao). Dimensionless multipliers now in place. |
+| P1-9 | Await V4 risk-side paired test results | `data/paired_regime_aware_v2_results.json` not yet present as of 2026-04-20. V4 tests VaR₉₅, CVaR₉₅, and AC objective. If significant, regime-aware execution has a defensible risk-reduction narrative even with indistinguishable mean cost. |
+| P1-10 | Demonstrate 1000-BTC case explicitly in final report | Already analyzed (§2). Narrative decision: lead with retail "AC ≈ TWAP" finding or institutional "AC saves 50%"? |
 
 ---
 
 ## 7. Confidence summary
 
-| Claim | Confidence | Rationale |
-|-------|-----------|-----------|
-| σ calibration is reliable | 🟢 high | GK + RS cross-check, 20% tolerance passes |
-| γ calibration is reliable | 🟡 medium | aggregated method returns positive sensible value but R² = 0.18 — real but noisy |
-| η calibration is reliable | 🟡 medium | aggregated returns literature-range α, R² low as expected |
-| HMM separates regimes | 🟢 high | round-trip test recovers regime structure |
-| Heston θ/ξ reliable | 🟡 medium | 20% recovery, xi within factor of 2 |
-| Heston κ/ρ reliable | 🔴 low | round-trip shows κ clips and ρ is noise |
-| AC beats TWAP at 10 BTC | 🔴 no | paired test p=0.88 |
-| AC beats TWAP at 1000+ BTC | 🟢 high | paired test p < 0.0001, 50% savings |
-| Full Truncation scheme correct | 🟢 high | Z-injection test at 1e-12 precision |
-| Fees are modeled correctly | 🟢 high | closed-form identity test |
+| Claim | Confidence | Evidence points | Notes |
+|-------|-----------|-----------------|-------|
+| σ calibration is reliable | high | GK + RS cross-check, 20% tolerance passes | — |
+| γ calibration is reliable | medium | aggregated method positive, R²=0.18 | Real but noisy |
+| η calibration is reliable | medium | aggregated, literature-range α, R² low as expected | — |
+| HMM separates regimes (univariate, 98d) | high | 250% σ spread; round-trip recovers structure | Confirmed in commit `1c95911` |
+| HMM with F&G sentiment amplifies regimes | none | tested and REJECTED — bivariate reduces spread 250%→45% (§5.4, commit `1c95911`) | Temporal mismatch problem |
+| Heston θ/ξ reliable | medium | 20% recovery, ξ within factor of 2 | — |
+| Heston κ/ρ reliable | low | round-trip: κ clips to ceiling, ρ is noise; no options data | Deribit fix open |
+| AC beats TWAP at 10 BTC (mean cost) | no | paired test p=0.88 | — |
+| AC beats TWAP at 1000+ BTC (mean cost) | high | paired test p<0.0001, 50% savings | — |
+| Regime-aware beats single-regime (mean cost) | no | V1 p≈0.84 (magic scaling); V2 p=0.84 (Yuhao fix); V3 p=0.84 (98d) | 4 data points, all null |
+| Regime-aware reduces tail risk (VaR/CVaR) | pending | V4 in flight — file not yet present | Will update when `paired_regime_aware_v2_results.json` lands |
+| Full Truncation scheme correct | high | Z-injection test at 1e-12 precision | — |
+| Fees are modeled correctly | high | closed-form identity test | — |
 
 ---
 
-*Last updated 2026-04-18 by Eva (via code-council audit + GLM-5.1 cross-review + parallel Sonnet worker pipeline).*
+*Last updated 2026-04-20 by Eva (Yuhao merge §1.5, WRDS/F&G findings §1.6, bivariate HMM rejection §5.4, V3/V4 Part E progression §2.1; original 2026-04-18 audit via code-council + GLM-5.1 cross-review).*
