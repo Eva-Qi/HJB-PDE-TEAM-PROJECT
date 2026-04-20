@@ -26,6 +26,7 @@ PIPELINE_FREQ = "5min"
 PIPELINE_X0 = 10.0         # 10 BTC — calibrated order size
 PIPELINE_TERMINAL_PENALTY = 1e4
 PIPELINE_GRID_M = 200
+PIPELINE_SAVE_DIAGNOSTICS = True
 
 
 def load_real_returns(
@@ -104,12 +105,20 @@ def print_regime_summary(regimes, states):
 
     print("\n=== Label summary ===")
     reg_map = {reg.label: reg for reg in regimes}
-    print("risk_on sigma scale :", reg_map["risk_on"].sigma)
-    print("risk_off sigma scale:", reg_map["risk_off"].sigma)
-    print("risk_on gamma scale :", reg_map["risk_on"].gamma)
-    print("risk_off gamma scale:", reg_map["risk_off"].gamma)
-    print("risk_on eta scale   :", reg_map["risk_on"].eta)
-    print("risk_off eta scale  :", reg_map["risk_off"].eta)
+
+    print("risk_on sigma scale   :", reg_map["risk_on"].sigma)
+    print("risk_off sigma scale  :", reg_map["risk_off"].sigma)
+    print("risk_on gamma scale   :", reg_map["risk_on"].gamma)
+    print("risk_off gamma scale  :", reg_map["risk_off"].gamma)
+    print("risk_on eta scale     :", reg_map["risk_on"].eta)
+    print("risk_off eta scale    :", reg_map["risk_off"].eta)
+
+    print("risk_on state_vol     :", reg_map["risk_on"].state_vol)
+    print("risk_off state_vol    :", reg_map["risk_off"].state_vol)
+    print("risk_on state_abs_ret :", reg_map["risk_on"].state_abs_ret)
+    print("risk_off state_abs_ret:", reg_map["risk_off"].state_abs_ret)
+    print("risk_on state_mean_ret:", reg_map["risk_on"].state_mean_ret)
+    print("risk_off state_mean_ret:", reg_map["risk_off"].state_mean_ret)
 
 
 def print_trajectory_summary(summary: dict):
@@ -209,6 +218,19 @@ def main():
     out_dir = PROJECT_ROOT / "data"
     state_df.to_csv(out_dir / "hmm_states_real_data.csv", index=False)
 
+    if PIPELINE_SAVE_DIAGNOSTICS:
+        reg_diag_df = pd.DataFrame({
+            "label": [reg.label for reg in regimes],
+            "sigma_scale": [reg.sigma for reg in regimes],
+            "gamma_scale": [reg.gamma for reg in regimes],
+            "eta_scale": [reg.eta for reg in regimes],
+            "probability": [reg.probability for reg in regimes],
+            "state_vol": [reg.state_vol for reg in regimes],
+            "state_abs_ret": [reg.state_abs_ret for reg in regimes],
+            "state_mean_ret": [reg.state_mean_ret for reg in regimes],
+        })
+        reg_diag_df.to_csv(out_dir / "regime_diagnostics.csv", index=False)
+
     traj_df = pd.DataFrame({
         "t": t_grid,
         "x_base": x_base,
@@ -220,6 +242,8 @@ def main():
     print("\n=== Files written ===")
     print(out_dir / "hmm_states_real_data.csv")
     print(out_dir / "regime_trajectories.csv")
+    if PIPELINE_SAVE_DIAGNOSTICS:
+        print(out_dir / "regime_diagnostics.csv")
 
 
 if __name__ == "__main__":

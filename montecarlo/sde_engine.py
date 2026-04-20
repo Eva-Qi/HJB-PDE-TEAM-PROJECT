@@ -474,3 +474,259 @@ def simulate_pde_optimal_execution(
         params, trajectory, n_paths=n_paths, seed=seed, scheme=scheme
     )
     return trajectory, price_paths, costs
+
+
+# ═══════════════════════════════════════════════════════════════
+# Regime-conditional Monte Carlo (Yuhao, 2026-04-18)
+# ═══════════════════════════════════════════════════════════════
+
+def _regime_params_from_label(
+    regime_label: int,
+    risk_on_params,
+    risk_off_params,
+):
+    """Map regime label to the corresponding ACParams.
+
+    Convention: 0 -> risk_on, 1 -> risk_off.
+    """
+    if regime_label == 0:
+        return risk_on_params
+    return risk_off_params
+
+
+def _compute_execution_cost_step(
+    x_prev: float,
+    x_next: float,
+    s_prev: float,
+    dt: float,
+    params,
+) -> float:
+    """One-step execution cost using current regime parameters.
+
+    q      = shares sold during this step
+    v      = execution rate
+    exec_px = execution price after temporary impact
+    cost   = q * exec_px
+    """
+    q = max(x_prev - x_next, 0.0)
+    if q <= 0.0:
+        return 0.0
+
+    v = q / dt
+    temp_impact = params.eta * (v ** params.alpha)
+    exec_px = s_prev - temp_impact
+    return q * exec_px
+
+
+def _prepare_regime_pde_controls(
+    risk_on_params,
+    risk_off_params,
+    M: int = 200,
+) -> dict:
+    """Solve PDE separately for risk_on and risk_off regimes.
+
+    Extracts the corresponding optimal inventory trajectories once at
+    initialization; regime switching then selects which trajectory to follow.
+    """
+    grid_on, _, v_star_on = solve_hjb(risk_on_params, M=M)
+    x_on = extract_optimal_trajectory(grid_on, v_star_on, risk_on_params)
+
+    grid_off, _, v_star_off = solve_hjb(risk_off_params, M=M)
+    x_off = extract_optimal_trajectory(grid_off, v_star_off, risk_off_params)
+
+    return {
+        "risk_on_x": np.asarray(x_on, dtype=float),
+        "risk_off_x": np.asarray(x_off, dtype=float),
+        "M": M,
+    }
+
+
+def _fractional_trade_from_trajectory(
+    x_prev: float,
+    trajectory_x: np.ndarray,
+    k: int,
+) -> float:
+    """Convert a PDE trajectory into a fractional liquidation rule.
+
+    Instead of using absolute shares from the PDE trajectory directly,
+    compute the fraction of remaining inventory sold at step k:
+
+        phi_k = (x_k - x_{k+1}) / x_k
+
+    Then apply that fraction to the current path inventory x_prev.
+    This is the regime-aware optimal control hook.
+    """
+    x_ref_k = float(trajectory_x[k])
+    x_ref_next = float(trajectory_x[k + 1])
+
+    if x_ref_k <= 1e-12:
+        return 0.0
+
+    phi_k = max((x_ref_k - x_ref_next) / x_ref_k, 0.0)
+    q = phi_k * x_prev
+    return max(q, 0.0)
+
+
+def _select_regime_pde_trajectory(
+    regime_label: int,
+    pde_controls: dict,
+) -> np.ndarray:
+    """Pick the PDE trajectory corresponding to the current regime.
+
+    Convention: 0 -> risk_on, 1 -> risk_off.
+    """
+    if regime_label == 0:
+        return pde_controls["risk_on_x"]
+    return pde_controls["risk_off_x"]
+
+
+def simulate_regime_execution(
+    regime_path,
+    base_params,
+    risk_on_params,
+    risk_off_params,
+    s0: float | None = None,
+    random_state: int | None = None,
+    control_mode: str = "rule",
+    pde_controls: dict | None = None,
+    pde_M: int = 200,
+) -> dict:
+    """Simulate one execution path with regime-conditional parameter switching.
+
+    At each time step, selects ACParams based on the current regime label,
+    then simulates price dynamics and execution cost accordingly.
+
+    Parameters
+    ----------
+    regime_path : array-like
+        Sequence of regime labels, length N.
+        Convention: 0 -> risk_on, 1 -> risk_off.
+        Use align_states_to_execution_grid() from extensions.regime to
+        downsample HMM state_sequence to base_params.N length.
+    base_params : ACParams
+        Baseline parameter set. Provides T, N, X0, S0.
+    risk_on_params : ACParams
+        Parameters used when regime_path[k] == 0.
+    risk_off_params : ACParams
+        Parameters used when regime_path[k] == 1.
+    s0 : float, optional
+        Initial price. If None, use base_params.S0.
+    random_state : int, optional
+        RNG seed.
+    control_mode : str
+        "rule" — heuristic: 0.8x base rate for risk_on, 1.2x for risk_off.
+        "pde"  — pre-solve HJB for both regimes; use fractional liquidation
+                 rule derived from the regime-specific PDE trajectory.
+    pde_controls : dict, optional
+        Pre-computed PDE controls (output of _prepare_regime_pde_controls).
+        If None and control_mode="pde", solved automatically.
+    pde_M : int
+        PDE inventory grid resolution if auto-solving.
+
+    Returns
+    -------
+    dict with keys:
+        "t"           : time grid (N+1,)
+        "regime_path" : regime sequence (N,)
+        "inventory"   : inventory path (N+1,)
+        "price"       : price path (N+1,)
+        "cost_path"   : cumulative execution cost path (N+1,)
+        "trade_rate"  : trade rate path (N,)
+        "total_cost"  : total execution cost (float)
+    """
+    regime_path = np.asarray(regime_path, dtype=int).reshape(-1)
+
+    if len(regime_path) != base_params.N:
+        raise ValueError(
+            f"regime_path length {len(regime_path)} must equal base_params.N = {base_params.N}"
+        )
+
+    rng = np.random.default_rng(random_state)
+
+    dt = base_params.T / base_params.N
+    t_grid = np.linspace(0.0, base_params.T, base_params.N + 1)
+
+    if s0 is None:
+        s0 = base_params.S0
+
+    inventory = np.zeros(base_params.N + 1)
+    price = np.zeros(base_params.N + 1)
+    cost_path = np.zeros(base_params.N + 1)
+    trade_rate = np.zeros(base_params.N)
+
+    inventory[0] = base_params.X0
+    price[0] = s0
+
+    base_rate = base_params.X0 / base_params.T
+
+    # Pre-solve PDE controls if needed
+    if control_mode == "pde" and pde_controls is None:
+        pde_controls = _prepare_regime_pde_controls(
+            risk_on_params=risk_on_params,
+            risk_off_params=risk_off_params,
+            M=pde_M,
+        )
+
+    for k in range(base_params.N):
+        current_params = _regime_params_from_label(
+            regime_path[k],
+            risk_on_params,
+            risk_off_params,
+        )
+
+        x_prev = inventory[k]
+        s_prev = price[k]
+
+        # Control block
+        if control_mode == "rule":
+            # MVP heuristic: risk_on -> slower (0.8x), risk_off -> faster (1.2x)
+            rate_multiplier = 0.8 if regime_path[k] == 0 else 1.2
+            v = rate_multiplier * base_rate
+            q = min(v * dt, x_prev)
+
+        elif control_mode == "pde":
+            regime_traj = _select_regime_pde_trajectory(
+                regime_label=regime_path[k],
+                pde_controls=pde_controls,
+            )
+            q = _fractional_trade_from_trajectory(
+                x_prev=x_prev,
+                trajectory_x=regime_traj,
+                k=k,
+            )
+            q = min(q, x_prev)
+            v = q / dt
+
+        else:
+            raise ValueError("control_mode must be either 'rule' or 'pde'.")
+
+        x_next = x_prev - q
+        inventory[k + 1] = x_next
+        trade_rate[k] = v
+
+        # Regime-dependent price dynamics
+        z = rng.standard_normal()
+        perm_impact = current_params.gamma * v
+        sigma = current_params.sigma
+        s_next = s_prev - perm_impact * dt + sigma * s_prev * np.sqrt(dt) * z
+        price[k + 1] = s_next
+
+        # Regime-dependent execution cost
+        step_cost = _compute_execution_cost_step(
+            x_prev=x_prev,
+            x_next=x_next,
+            s_prev=s_prev,
+            dt=dt,
+            params=current_params,
+        )
+        cost_path[k + 1] = cost_path[k] + step_cost
+
+    return {
+        "t": t_grid,
+        "regime_path": regime_path,
+        "inventory": inventory,
+        "price": price,
+        "cost_path": cost_path,
+        "trade_rate": trade_rate,
+        "total_cost": float(cost_path[-1]),
+    }
