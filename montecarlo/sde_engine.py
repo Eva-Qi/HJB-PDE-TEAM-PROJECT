@@ -601,8 +601,11 @@ def simulate_regime_execution(
     regime_path : array-like
         Sequence of regime labels, length N.
         Convention: 0 -> risk_on, 1 -> risk_off.
-        Use align_states_to_execution_grid() from extensions.regime to
-        downsample HMM state_sequence to base_params.N length.
+        Use `derive_regime_path()` from extensions.regime to build this
+        from the output of `fit_hmm()`. Default mode="current" (use last
+        HMM state as constant throughout) is recommended for short
+        execution windows; mode="historical" for backtest replay;
+        mode="sample" for forward regime uncertainty.
     base_params : ACParams
         Baseline parameter set. Provides T, N, X0, S0.
     risk_on_params : ACParams

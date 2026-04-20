@@ -648,32 +648,149 @@ def regime_aware_params(
     )
 
 
-def align_states_to_execution_grid(
+def _empirical_transition_matrix(
     state_sequence: np.ndarray,
-    n_steps: int,
+    n_states: int = 2,
 ) -> np.ndarray:
-    """Downsample HMM state sequence to the execution time grid.
+    """Estimate transition matrix from an observed Viterbi state sequence.
 
-    The HMM state sequence has length T_returns (e.g., 8000+ 5-min bars),
-    while the execution grid has length n_steps (base_params.N, e.g., 50-200).
-    This function maps the longer sequence to the shorter grid by taking the
-    mode (rounded mean) of each block.
+    Count per-state pair (s_t, s_{t+1}) transitions and normalize each row
+    to a probability. Used by `derive_regime_path(mode='sample')` so callers
+    don't need the HMM's internal transmat exposed.
+
+    If a state never appears in `state_sequence` its row defaults to uniform
+    to avoid division-by-zero. This is a degeneracy guard, not a principled
+    prior — if it triggers, the HMM fit probably over-collapsed.
+    """
+    counts = np.zeros((n_states, n_states), dtype=float)
+    for i in range(len(state_sequence) - 1):
+        counts[int(state_sequence[i]), int(state_sequence[i + 1])] += 1.0
+    row_sums = counts.sum(axis=1, keepdims=True)
+    # Replace zero rows with uniform (degenerate-state guard)
+    uniform = np.ones(n_states) / n_states
+    transmat = np.where(row_sums > 0, counts / np.maximum(row_sums, 1.0), uniform)
+    return transmat
+
+
+def derive_regime_path(
+    base_params,
+    hmm_result: tuple,
+    mode: str = "current",
+    transition_matrix: np.ndarray | None = None,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Convert HMM historical output into an execution-grid regime_path.
+
+    Bridges `fit_hmm(returns)` (length = len(returns), HISTORICAL) to
+    `simulate_regime_execution`'s `regime_path` parameter (length =
+    `base_params.N`, FUTURE execution window). These are semantically
+    different time windows, so there is no single "right" downsample —
+    the mapping depends on the narrative being run.
+
+    Three modes:
+
+    - ``"current"`` (default, recommended for short execution windows):
+      Use the LAST HMM state as a constant throughout the execution
+      window. Honest: we don't know future regime switches. For 1-hour
+      execution with regimes that switch on day-scale, this is the
+      realistic assumption.
+
+    - ``"historical"`` (backtest framing):
+      Downsample the historical Viterbi sequence to `N` bins via
+      block-mode (rounded mean). Answers "what if we had executed during
+      this historical regime pattern?". Fragile assumption that future
+      regimes = compressed past regimes — use for backtest demos only.
+
+    - ``"sample"`` (forward uncertainty):
+      Sample forward `N` steps from the empirical transition matrix,
+      starting at the current (last) state. Models regime uncertainty
+      over the execution window. Requires running many MC paths to
+      average over regime draw + price noise.
 
     Parameters
     ----------
-    state_sequence : np.ndarray
-        Integer state sequence from fit_hmm(), length = len(returns).
-    n_steps : int
-        Target execution grid length = base_params.N.
+    base_params : ACParams
+        Execution parameters; only `N` is used to size the output.
+    hmm_result : tuple
+        Output of `fit_hmm(returns)` — (regimes: list[RegimeParams],
+        state_sequence: np.ndarray[int]).
+    mode : {"current", "historical", "sample"}
+        Bridge mode. Default "current".
+    transition_matrix : np.ndarray, optional
+        Shape (n_states, n_states). Only consulted when mode="sample";
+        if None, derived from `state_sequence` via empirical counts.
+    rng : np.random.Generator, optional
+        Only used for mode="sample". If None, a fresh default rng is created.
 
     Returns
     -------
-    aligned : np.ndarray, shape (n_steps,), dtype=int
-        Regime label for each execution time step.
+    regime_path : np.ndarray, shape (base_params.N,), dtype=int
+        Integer regime label for each execution time step.
+
+    Raises
+    ------
+    ValueError
+        On unknown mode or empty state_sequence.
     """
-    block_size = max(len(state_sequence) // n_steps, 1)
-    aligned = np.array([
-        int(np.round(np.mean(state_sequence[k * block_size:(k + 1) * block_size])))
-        for k in range(n_steps)
-    ], dtype=int)
-    return aligned
+    _, state_sequence = hmm_result
+    state_sequence = np.asarray(state_sequence, dtype=int)
+    N = int(base_params.N)
+
+    if state_sequence.size == 0:
+        raise ValueError("state_sequence is empty — cannot derive regime path.")
+
+    if mode == "current":
+        current_state = int(state_sequence[-1])
+        return np.full(N, current_state, dtype=int)
+
+    if mode == "historical":
+        T = state_sequence.size
+        block_size = max(T // N, 1)
+
+        def _block_mode(k: int) -> int:
+            lo = k * block_size
+            hi = (k + 1) * block_size
+            # If we've exhausted the input (happens when T < N), repeat
+            # the last observed block. This is preferable to NaN or to
+            # inventing state.
+            if lo >= T:
+                lo = max(T - block_size, 0)
+                hi = T
+            hi = min(hi, T)
+            if lo == hi:
+                return int(state_sequence[-1])
+            return int(round(float(np.mean(state_sequence[lo:hi]))))
+
+        return np.array([_block_mode(k) for k in range(N)], dtype=int)
+
+    if mode == "sample":
+        n_states = int(state_sequence.max()) + 1
+        if n_states < 2:
+            # Degenerate HMM (collapsed to single state) → constant path
+            return np.full(N, int(state_sequence[-1]), dtype=int)
+        if transition_matrix is None:
+            transition_matrix = _empirical_transition_matrix(
+                state_sequence, n_states=n_states,
+            )
+        transition_matrix = np.asarray(transition_matrix, dtype=float)
+        if transition_matrix.shape != (n_states, n_states):
+            raise ValueError(
+                f"transition_matrix shape {transition_matrix.shape} does not "
+                f"match n_states inferred from state_sequence ({n_states})."
+            )
+        if rng is None:
+            rng = np.random.default_rng()
+        path = np.empty(N, dtype=int)
+        path[0] = int(state_sequence[-1])
+        for k in range(1, N):
+            probs = transition_matrix[path[k - 1]]
+            # Numerical cleanup in case of small floating error
+            probs = np.clip(probs, 0.0, None)
+            s = probs.sum()
+            probs = probs / s if s > 0 else np.ones_like(probs) / len(probs)
+            path[k] = int(rng.choice(len(probs), p=probs))
+        return path
+
+    raise ValueError(
+        f"Unknown mode {mode!r}. Expected 'current', 'historical', or 'sample'."
+    )
