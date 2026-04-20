@@ -1,0 +1,23 @@
+{
+  "univariate": {
+    "label": "univariate (log_return)",
+    "sigma_on": 0.6737435959488971,
+    "sigma_off": 2.3565913889458767,
+    "sigma_spread_pct": 249.77570148579522,
+    "prob_on": 0.8928887786557064,
+    "prob_off": 0.10711122134429366,
+    "state_vol_on": 0.0011205585896413026,
+    "state_vol_off": 0.0039194416674771995
+  },
+  "bivariate": {
+    "label": "bivariate (+ sentiment)",
+    "sigma_on": 0.7758970689813093,
+    "sigma_off": 1.1234255834043037,
+    "sigma_spread_pct": 44.7905435290884,
+    "prob_on": 0.39712291393544275,
+    "prob_off": 0.6028770860645573,
+    "state_vol_on": 0.0012904584630596808,
+    "state_vol_off": 0.0018684618226812325
+  },
+  "spread_ratio": 0.17932306170156287
+}
