@@ -21,8 +21,10 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, replace
+from typing import Union
 
 import numpy as np
+import pandas as pd
 from scipy.special import logsumexp
 
 from shared.params import ACParams
@@ -479,30 +481,130 @@ def _fit_hmm_hmmlearn(
     return means, stds, transmat, stationary, states
 
 
+def _fit_hmm_hmmlearn_multifeature(
+    features: np.ndarray,
+    n_regimes: int = 2,
+    n_init: int = 5,
+    seed: int = 0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Fit a multivariate Gaussian HMM using hmmlearn on (T, d) feature matrix.
+
+    Requires hmmlearn — caller must check ``_HAS_HMMLEARN`` before calling.
+
+    Parameters
+    ----------
+    features : np.ndarray, shape (T, d)
+        Feature matrix where d >= 1. Column 0 is expected to be log_return;
+        additional columns can be sentiment, vol, etc.
+    n_regimes : int
+        Number of HMM states.
+    n_init : int
+        Number of random restarts. Best log-likelihood is kept.
+    seed : int
+        Base random seed (incremented per restart).
+
+    Returns
+    -------
+    means_col0, stds_col0, transmat, stationary, state_sequence
+        means_col0, stds_col0 are statistics for column 0 only (log_return)
+        so that RegimeParams multipliers remain on the returns scale.
+        transmat and stationary come from the best-fit full model.
+        state_sequence is the Viterbi path over all T observations.
+    """
+    T, d = features.shape
+    best_score = -np.inf
+    best_model = None
+
+    for i in range(n_init):
+        model = _GaussianHMM(
+            n_components=n_regimes,
+            covariance_type="full",
+            n_iter=500,
+            tol=1e-6,
+            random_state=seed + i,
+            min_covar=1e-12,
+        )
+        try:
+            model.fit(features)
+            score = model.score(features)
+            # Reject degenerate fits where one state has <5% of observations
+            counts = np.bincount(model.predict(features), minlength=n_regimes)
+            if counts.min() < 0.05 * T:
+                continue
+        except Exception:
+            continue
+        if score > best_score:
+            best_score = score
+            best_model = model
+
+    if best_model is None:
+        raise RuntimeError(
+            "All hmmlearn GaussianHMM initialisations collapsed to a "
+            "single state (multi-feature path). The features may not "
+            "have distinct regimes, or try increasing n_init."
+        )
+
+    states = best_model.predict(features)
+    transmat = best_model.transmat_
+    stationary = best_model.startprob_
+
+    # Extract per-state mean and std for column 0 (log_return) only.
+    # Sentiment does not have a "vol" interpretation, so all RegimeParams
+    # dimensionless multipliers (sigma, gamma, eta) are computed purely
+    # from the log-return column — consistent with the univariate path.
+    means_col0 = best_model.means_[:, 0]           # shape (n_regimes,)
+    # For "full" covariance type, covars_ has shape (n_regimes, d, d).
+    stds_col0 = np.sqrt(best_model.covars_[:, 0, 0])  # shape (n_regimes,)
+
+    return means_col0, stds_col0, transmat, stationary, states
+
+
 # ═══════════════════════════════════════════════════════════════
 # Public API
 # ═══════════════════════════════════════════════════════════════
 
 def fit_hmm(
-    returns: np.ndarray,
+    returns: Union[np.ndarray, None] = None,
     n_regimes: int = 2,
     use_abs_return_for_impact: bool = True,
+    *,
+    features: Union[np.ndarray, None] = None,
 ) -> tuple[list[RegimeParams], np.ndarray]:
     """Fit a Hidden Markov Model to classify market regimes.
 
-    Uses hmmlearn.GaussianHMM if available (multi-restart Baum-Welch,
-    n_init=5), otherwise falls back to Yuhao's rolling-vol-feature EM
-    (pure numpy). Both paths produce dimensionless multiplier scaling.
+    Accepts either a 1-D returns array (original API) or a 2-D feature
+    matrix of shape ``(T, d)`` via the keyword argument ``features`` or
+    by passing a 2-D array as the first positional argument.
+
+    **1-D path** (backward-compatible):
+        Uses hmmlearn.GaussianHMM if available (multi-restart Baum-Welch,
+        n_init=5), otherwise falls back to Yuhao's rolling-vol-feature EM
+        (pure numpy). Both paths produce dimensionless multiplier scaling.
+
+    **Multi-feature path** (d >= 2):
+        Requires hmmlearn — raises ``NotImplementedError`` if unavailable.
+        Fits ``GaussianHMM(covariance_type="full")`` on the full (T, d)
+        matrix. RegimeParams dimensionless multipliers (sigma, gamma, eta)
+        are computed exclusively from **column 0** (the log-return column)
+        so that their interpretation is unchanged. Sentiment and any other
+        columns influence regime separation via the joint likelihood but do
+        not alter the multiplier scale.
 
     Parameters
     ----------
-    returns : np.ndarray
-        Log returns series (1-D array).
+    returns : np.ndarray, optional
+        Log returns series. Accepts 1-D array for the classic path, or a
+        2-D array of shape ``(T, d)`` as a shorthand for ``features``.
+        One of ``returns`` or ``features`` must be provided.
     n_regimes : int
         Number of regimes (default 2: risk-on, risk-off).
     use_abs_return_for_impact : bool
         If True, use mean |return| ratio for gamma/eta scaling.
         If False, use vol ratio for all three.
+    features : np.ndarray, optional
+        2-D feature matrix of shape ``(T, d)`` where column 0 is
+        log_return and columns 1..d-1 are additional signals (e.g.
+        sentiment). Mutually exclusive with passing a 2-D ``returns``.
 
     Returns
     -------
@@ -513,6 +615,13 @@ def fit_hmm(
         (~0.8–1.2x) applied to base ACParams.
     state_sequence : np.ndarray
         Most likely regime at each time step (Viterbi path).
+
+    Raises
+    ------
+    NotImplementedError
+        If ``features`` has d > 1 and hmmlearn is not installed.
+    ValueError
+        On invalid inputs (wrong shape, NaN, too few observations).
     """
     if n_regimes != 2:
         raise ValueError(
@@ -520,24 +629,76 @@ def fit_hmm(
             "(risk_on / risk_off)."
         )
 
-    r = _validate_returns(returns)
+    # ── Resolve input: 1-D vs 2-D ────────────────────────────────────
+    if features is not None and returns is not None:
+        raise ValueError(
+            "Provide either 'returns' or 'features', not both."
+        )
 
-    if _HAS_HMMLEARN:
-        means_raw, stds_raw, transmat, stationary, states_raw = _fit_hmm_hmmlearn(
-            r, n_regimes,
+    raw_input = features if features is not None else returns
+    if raw_input is None:
+        raise ValueError("Must provide 'returns' or 'features'.")
+
+    raw_input = np.asarray(raw_input, dtype=float)
+
+    # Treat a 2-D positional returns as features
+    is_multifeature = raw_input.ndim == 2 and raw_input.shape[1] > 1
+
+    if is_multifeature:
+        # ── Multi-feature path ─────────────────────────────────────────
+        feat = raw_input  # shape (T, d)
+        if feat.ndim != 2:
+            raise ValueError("features must be 2-D array of shape (T, d).")
+        T, d = feat.shape
+
+        if T < _MIN_OBS:
+            raise ValueError(
+                f"Too few observations ({T}); need >= {_MIN_OBS} "
+                "for a reliable HMM fit."
+            )
+        n_bad = int(np.sum(~np.isfinite(feat)))
+        if n_bad > 0:
+            raise ValueError(
+                f"features contains {n_bad} non-finite values (NaN/Inf). "
+                "Clean with dropna()/isfinite() before calling fit_hmm."
+            )
+
+        if not _HAS_HMMLEARN:
+            raise NotImplementedError(
+                "Multi-feature HMM requires hmmlearn — install via "
+                "`pip install hmmlearn`. Pure-numpy fallback not "
+                "supported for d>1."
+            )
+
+        _, _, transmat, stationary, states_raw = _fit_hmm_hmmlearn_multifeature(
+            feat, n_regimes=n_regimes, n_init=5,
         )
-        # hmmlearn state indices may be in any order; we remap below
-        # states_raw are on the full returns array r
         state_sequence_raw = np.asarray(states_raw, dtype=int)
+
+        # For RegimeParams stats: use column 0 (log_return) only.
+        # Sentiment does not carry a "vol" meaning.
+        r = feat[:, 0]
+
     else:
-        warnings.warn(
-            "hmmlearn not installed — using rolling-vol-feature EM fallback. "
-            "Install hmmlearn for better performance: pip install hmmlearn",
-            stacklevel=2,
-        )
-        _means_f, _stds_f, _A_f, _pi_f, state_sequence_raw = _fit_hmm_rolling_vol(
-            r, n_regimes,
-        )
+        # ── 1-D path (backward-compatible) ────────────────────────────
+        r = _validate_returns(raw_input.reshape(-1))
+
+        if _HAS_HMMLEARN:
+            means_raw, stds_raw, transmat, stationary, states_raw = _fit_hmm_hmmlearn(
+                r, n_regimes,
+            )
+            # hmmlearn state indices may be in any order; we remap below
+            # states_raw are on the full returns array r
+            state_sequence_raw = np.asarray(states_raw, dtype=int)
+        else:
+            warnings.warn(
+                "hmmlearn not installed — using rolling-vol-feature EM fallback. "
+                "Install hmmlearn for better performance: pip install hmmlearn",
+                stacklevel=2,
+            )
+            _means_f, _stds_f, _A_f, _pi_f, state_sequence_raw = _fit_hmm_rolling_vol(
+                r, n_regimes,
+            )
 
     # ── Build RegimeParams with dimensionless multipliers ────────────
     overall_vol = np.std(r, ddof=1)
@@ -794,3 +955,120 @@ def derive_regime_path(
     raise ValueError(
         f"Unknown mode {mode!r}. Expected 'current', 'historical', or 'sample'."
     )
+
+
+# ═══════════════════════════════════════════════════════════════
+# Sentiment alignment helper
+# ═══════════════════════════════════════════════════════════════
+
+def align_sentiment_to_returns_bar(
+    returns_df: pd.DataFrame,           # must have 'timestamp' (UTC) and a returns column
+    sentiment_df: pd.DataFrame,         # daily: must have 'date' and 'sentiment' columns
+    returns_col: str = "log_return",
+    sentiment_col: str = "sentiment",
+    fill: str = "ffill",                # forward-fill daily values to 5-min grid
+) -> np.ndarray:
+    """Align daily sentiment to the timestamp grid of a higher-frequency
+    returns series and return a 2-D feature array (T, 2).
+
+    Column 0: log_return (from returns_df)
+    Column 1: sentiment (forward-filled from sentiment_df)
+
+    Rows with NaN in EITHER column after alignment are dropped — caller
+    gets contiguous finite rows ready for HMM.
+
+    Parameters
+    ----------
+    returns_df : pd.DataFrame
+        Must contain a ``'timestamp'`` column (UTC, any tz representation)
+        and a column named ``returns_col``.
+    sentiment_df : pd.DataFrame
+        Daily-frequency DataFrame with a ``'date'`` column (or index) and
+        a column named ``sentiment_col``.  May be tz-naive or tz-aware;
+        this function normalises to UTC before joining.
+    returns_col : str
+        Name of the returns column in ``returns_df``. Default ``"log_return"``.
+    sentiment_col : str
+        Name of the sentiment column in ``sentiment_df``. Default ``"sentiment"``.
+    fill : str
+        Fill method for reindexing daily → high-frequency grid.
+        ``"ffill"`` (default) propagates the last known daily value forward.
+        ``"nearest"`` picks the closest daily timestamp.
+
+    Returns
+    -------
+    np.ndarray, shape (T_clean, 2)
+        Contiguous float array where column 0 is log_return and column 1
+        is the aligned sentiment.  Any row containing NaN in either column
+        after alignment is dropped.
+
+    Raises
+    ------
+    ValueError
+        If required columns are missing, or if ``fill`` is not recognised.
+    """
+    if "timestamp" not in returns_df.columns:
+        raise ValueError("returns_df must have a 'timestamp' column.")
+    if returns_col not in returns_df.columns:
+        raise ValueError(
+            f"returns_df is missing column '{returns_col}'. "
+            f"Available: {list(returns_df.columns)}"
+        )
+
+    valid_fills = {"ffill", "nearest"}
+    if fill not in valid_fills:
+        raise ValueError(
+            f"fill={fill!r} not recognised. Use one of {sorted(valid_fills)}."
+        )
+
+    # ── Prepare sentiment index ──────────────────────────────────────
+    sent = sentiment_df.copy()
+    if "date" in sent.columns:
+        sent = sent.set_index("date")
+    if sentiment_col not in sent.columns:
+        raise ValueError(
+            f"sentiment_df is missing column '{sentiment_col}'. "
+            f"Available: {list(sent.columns)}"
+        )
+
+    # Normalise sentiment index to UTC timestamps (tz-aware)
+    idx = sent.index
+    if not isinstance(idx, pd.DatetimeIndex):
+        idx = pd.to_datetime(idx)
+    if idx.tz is None:
+        idx = idx.tz_localize("UTC")
+    else:
+        idx = idx.tz_convert("UTC")
+    sent.index = idx
+    sent_series = sent[sentiment_col]
+
+    # ── Prepare returns timestamp index (tz-aware UTC) ───────────────
+    ts = pd.to_datetime(returns_df["timestamp"])
+    if ts.dt.tz is None:
+        ts = ts.dt.tz_localize("UTC")
+    else:
+        ts = ts.dt.tz_convert("UTC")
+
+    # ── Reindex sentiment to high-frequency grid ─────────────────────
+    if fill == "ffill":
+        # Sort sentinel timestamps, then reindex + ffill
+        aligned = (
+            sent_series
+            .reindex(sent_series.index.union(ts), method="ffill")
+            .reindex(ts)
+        )
+    else:  # fill == "nearest"
+        aligned = (
+            sent_series
+            .reindex(sent_series.index.union(ts), method="nearest")
+            .reindex(ts)
+        )
+
+    aligned = aligned.values  # shape (T,)
+
+    # ── Stack and drop NaN rows ──────────────────────────────────────
+    ret_vals = returns_df[returns_col].values
+    combined = np.column_stack([ret_vals, aligned])  # (T, 2)
+
+    finite_mask = np.all(np.isfinite(combined), axis=1)
+    return combined[finite_mask].astype(float)
