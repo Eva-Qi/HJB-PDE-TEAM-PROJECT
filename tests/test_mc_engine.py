@@ -111,26 +111,49 @@ class TestExecutionSimulation:
         _, costs = simulate_execution(DEFAULT_PARAMS, x_twap, n_paths=1000)
         assert np.std(costs) > 0, "Cost distribution should have positive std"
 
-    def test_antithetic_reduces_variance(self):
-        """Antithetic variates should reduce cost variance vs plain MC."""
+    def test_antithetic_reduces_estimator_variance(self):
+        """Antithetic should reduce the MC ESTIMATOR's variance across seeds.
+
+        Methodological note (GLM audit + debug): the previous test measured
+        `np.var(costs)` which is sample variance (bimodal for antithetic
+        because half the samples come from +Z, half from -Z — sample spread
+        doesn't shrink). The RIGHT metric is Var[mean_cost] across
+        independent seeds, which captures estimator precision. For
+        anti-symmetric payoffs, antithetic roughly halves this estimator
+        variance.
+
+        If this fails: likely the antithetic draw isn't actually ±Z, or
+        the payoff is not anti-symmetric in Z (which for linear execution
+        cost under GBM it should be, approximately).
+        """
         x_twap = twap_trajectory(DEFAULT_PARAMS)
+        N_SEEDS = 20
+        means_plain = []
+        means_anti = []
+        for seed in range(N_SEEDS):
+            _, cp = simulate_execution(
+                DEFAULT_PARAMS, x_twap, n_paths=2000,
+                seed=seed, antithetic=False,
+            )
+            _, ca = simulate_execution(
+                DEFAULT_PARAMS, x_twap, n_paths=2000,
+                seed=seed, antithetic=True,
+            )
+            means_plain.append(float(np.mean(cp)))
+            means_anti.append(float(np.mean(ca)))
 
-        _, costs_plain = simulate_execution(
-            DEFAULT_PARAMS, x_twap, n_paths=10000, seed=42, antithetic=False
-        )
-        _, costs_anti = simulate_execution(
-            DEFAULT_PARAMS, x_twap, n_paths=10000, seed=42, antithetic=True
-        )
+        var_plain = float(np.var(means_plain, ddof=1))
+        var_anti = float(np.var(means_anti, ddof=1))
+        ratio = var_anti / var_plain if var_plain > 0 else float("inf")
 
-        # Variance of the mean estimator
-        var_plain = np.var(costs_plain) / len(costs_plain)
-        var_anti = np.var(costs_anti) / len(costs_anti)
-
-        # Antithetic should give lower variance (not guaranteed but very likely)
-        # Use a generous check — just verify it's not much worse
-        assert var_anti < var_plain * 1.1, (
-            f"Antithetic variance ({var_anti:.6e}) should be less than "
-            f"plain ({var_plain:.6e})"
+        assert ratio < 0.5, (
+            f"Estimator variance ratio (antithetic/plain) across "
+            f"{N_SEEDS} seeds: Var[mean_anti]={var_anti:.4e}, "
+            f"Var[mean_plain]={var_plain:.4e}, ratio={ratio:.3f}. "
+            f"Expected < 0.5 (antithetic ~halves estimator variance for "
+            f"anti-symmetric payoffs). If close to 1.0, antithetic is "
+            f"providing no actual noise cancellation — the ±Z pairing or "
+            f"payoff symmetry is broken."
         )
 
 
@@ -138,19 +161,33 @@ class TestControlVariate:
     """Test control variate variance reduction (previously untested)."""
 
     def test_control_variate_preserves_mean(self):
-        """CV should not significantly change the mean estimate."""
+        """Control variate is UNBIASED by construction:
+            E[C_cv] = E[C_opt] - β·(E[C_twap] - E[C_twap]) = E[C_opt]
+
+        GLM verdict: old 10% tolerance "hides massive bias". The true
+        property is ZERO expected bias — any deviation is sampling error.
+        With 20k paths, CLT bound on the difference is ~0.5%, so 2% is
+        a sharp but not fragile threshold.
+
+        If this fails with > 2% shift, the CV implementation is likely
+        using a biased β estimator or mismatched variate pairing.
+        """
         x_opt = optimal_trajectory(DEFAULT_PARAMS)
         x_twap = twap_trajectory(DEFAULT_PARAMS)
 
         _, costs_plain = simulate_execution(
-            DEFAULT_PARAMS, x_opt, n_paths=10000, seed=42
+            DEFAULT_PARAMS, x_opt, n_paths=20000, seed=42
         )
         _, costs_cv = simulate_execution_with_control_variate(
-            DEFAULT_PARAMS, x_opt, x_twap, n_paths=10000, seed=42
+            DEFAULT_PARAMS, x_opt, x_twap, n_paths=20000, seed=42
         )
 
         rel_diff = abs(np.mean(costs_cv) - np.mean(costs_plain)) / abs(np.mean(costs_plain))
-        assert rel_diff < 0.1, f"CV mean shifted by {rel_diff*100:.1f}%"
+        assert rel_diff < 0.02, (
+            f"CV mean shifted by {rel_diff*100:.2f}% (> 2% threshold). "
+            f"CV should be unbiased by construction — large bias suggests "
+            f"β-estimator issue or mispaired control variate."
+        )
 
     def test_control_variate_reduces_variance(self):
         """CV should reduce variance compared to plain MC."""
