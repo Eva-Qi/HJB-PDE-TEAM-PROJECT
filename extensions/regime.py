@@ -291,6 +291,18 @@ def fit_hmm(
             "for a reliable HMM fit."
         )
 
+    # NaN/Inf validation — cryptic "collapsed to single state" errors
+    # were traced back to NaN contamination in input returns. Fail fast
+    # with a clear message instead.
+    n_bad = int(np.sum(~np.isfinite(returns)))
+    if n_bad > 0:
+        raise ValueError(
+            f"Input returns contains {n_bad} non-finite values (NaN/Inf) "
+            f"out of {len(returns)}. Clean with dropna()/isfinite() before "
+            f"calling fit_hmm. NaN in emission PDFs causes Baum-Welch to "
+            f"silently degenerate to a 'collapsed state' error."
+        )
+
     if _HAS_HMMLEARN:
         means, stds, transmat, stationary, states = _fit_hmm_hmmlearn(
             returns, n_regimes,

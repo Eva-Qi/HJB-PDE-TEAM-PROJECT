@@ -120,12 +120,173 @@ def estimate_temporary_impact(
     return eta, alpha
 
 
+def estimate_kyle_lambda_aggregated(
+    trades_df,
+    freq: str = "1min",
+) -> tuple[float, dict]:
+    """Estimate Kyle's lambda (permanent impact γ) via time-bucket aggregation.
+
+    Why this replaces tick-level: tick-by-tick `price.diff()` is dominated
+    by bid-ask bounce. When a large aggressive buy hits the ask, the NEXT
+    trade often hits the bid (mean reversion of best quote), producing
+    NEGATIVE empirical Cov(dp, flow) — i.e., a NEGATIVE Kyle lambda,
+    which is economically absurd ("buys push price down"). The tick-level
+    estimator has been empirically observed to return γ ≈ -0.01 on real
+    BTCUSDT data; `calibrated_params()` then silently falls back to the
+    literature constant γ=1e-4.
+
+    Aggregating to 1-minute buckets and regressing net_flow vs
+    price_change recovers economically-sensible positive γ (~2.5 per BTC
+    on BTCUSDT), matching the bar-level figures in PROJECT_AUDIT_REPORT.
+
+    Formula: γ = Cov(Δp, net_flow) / Var(net_flow) where
+        Δp         = last_price − first_price (within bucket)
+        net_flow   = Σ (quantity × side) within bucket
+        side       = +1 if taker buy, -1 if taker sell
+
+    Parameters
+    ----------
+    trades_df : pd.DataFrame
+        Trade data with columns: timestamp, price, quantity, side.
+    freq : str
+        Pandas resample frequency (e.g. "1min", "5min"). Default "1min".
+
+    Returns
+    -------
+    (gamma, diagnostics) : tuple[float, dict]
+        diagnostics contains: n_buckets, r_squared, sign_correct.
+    """
+    import pandas as pd
+
+    df = trades_df.set_index("timestamp").sort_index()
+    df["signed_flow"] = df["quantity"] * df["side"]
+
+    buckets = df.resample(freq).agg(
+        net_flow=("signed_flow", "sum"),
+        first_price=("price", "first"),
+        last_price=("price", "last"),
+        n_trades=("price", "count"),
+    ).dropna()
+    buckets = buckets[buckets["n_trades"] > 0]
+
+    dp = (buckets["last_price"] - buckets["first_price"]).values
+    flow = buckets["net_flow"].values
+    mask = np.isfinite(dp) & np.isfinite(flow)
+    dp, flow = dp[mask], flow[mask]
+
+    if len(dp) < 20:
+        raise ValueError(
+            f"Only {len(dp)} valid buckets after filtering — need ≥ 20."
+        )
+
+    var_flow = float(np.var(flow))
+    if var_flow == 0.0:
+        raise ValueError("Zero variance in net_flow — cannot estimate lambda.")
+
+    cov_dp_flow = float(np.cov(dp, flow, ddof=1)[0, 1])
+    gamma = cov_dp_flow / var_flow
+
+    # R² from the regression dp = γ × flow + ε
+    corr = float(np.corrcoef(dp, flow)[0, 1])
+    r_squared = corr ** 2
+
+    diag = {
+        "n_buckets": int(len(dp)),
+        "r_squared": r_squared,
+        "sign_correct": gamma > 0,  # economically, buys should push price up
+        "freq": freq,
+    }
+    return gamma, diag
+
+
+def estimate_temporary_impact_aggregated(
+    trades_df,
+    freq: str = "1min",
+) -> tuple[float, float, dict]:
+    """Estimate temporary impact via time-bucket aggregation (preferred method).
+
+    Why this replaces trade-level: trade-by-trade `abs_price_change` is
+    dominated by bid-ask bounce, not impact from quantity. The log-log
+    regression of quantity vs price change then recovers alpha ≈ 0
+    (see `estimate_temporary_impact_from_trades` pitfall).
+
+    Aggregating to 1-minute bars and regressing |net_signed_flow| against
+    |return| recovers literature-range alpha (0.3-1.0) because:
+        1. Bid-ask noise averages out within each bucket
+        2. Net flow (not gross quantity) reflects directional impact
+        3. Return (not absolute price) is dimensionless
+
+    This matches the approach in `scripts/aggregated_alpha_v2.py` which
+    the PROJECT_AUDIT_REPORT cites as giving alpha=0.441 (R²=0.147) on
+    1-minute aggregation across 98 days.
+
+    Parameters
+    ----------
+    trades_df : pd.DataFrame
+        Trade data with columns: timestamp, price, quantity, side.
+    freq : str
+        Pandas resample frequency (e.g. "1min", "5min"). Default "1min".
+
+    Returns
+    -------
+    (eta, alpha, diagnostics) : tuple[float, float, dict]
+        diagnostics contains: n_buckets, r_squared, p_value, std_err.
+    """
+    import pandas as pd
+    from scipy import stats
+
+    df = trades_df.set_index("timestamp").sort_index()
+    df["signed_flow"] = df["quantity"] * df["side"]
+
+    buckets = df.resample(freq).agg(
+        net_flow=("signed_flow", "sum"),
+        first_price=("price", "first"),
+        last_price=("price", "last"),
+        n_trades=("price", "count"),
+    ).dropna()
+    buckets = buckets[buckets["n_trades"] > 0]
+    buckets["return"] = (buckets["last_price"] - buckets["first_price"]) / buckets["first_price"]
+
+    abs_flow = buckets["net_flow"].abs().values
+    abs_return = buckets["return"].abs().values
+    mask = (abs_flow > 0) & (abs_return > 0) & np.isfinite(abs_flow) & np.isfinite(abs_return)
+    abs_flow = abs_flow[mask]
+    abs_return = abs_return[mask]
+
+    if len(abs_flow) < 20:
+        raise ValueError(
+            f"Only {len(abs_flow)} valid buckets after filtering — "
+            f"need ≥ 20 for a stable regression."
+        )
+
+    slope, intercept, r_value, p_value, std_err = stats.linregress(
+        np.log(abs_flow), np.log(abs_return),
+    )
+
+    alpha = float(slope)
+    eta = float(np.exp(intercept))
+    diag = {
+        "n_buckets": len(abs_flow),
+        "r_squared": float(r_value ** 2),
+        "p_value": float(p_value),
+        "std_err": float(std_err),
+        "freq": freq,
+    }
+    return eta, alpha, diag
+
+
 def estimate_temporary_impact_from_trades(
     trades_df,
     n_buckets: int = 20,
     min_trades_per_bucket: int = 100,
 ) -> tuple[float, float]:
     """Estimate temporary impact from trade-level data (no order book needed).
+
+    WARNING: this trade-level estimator is known to produce alpha ≈ 0
+    because bid-ask bounce dominates the per-trade price change.
+    `calibrated_params()` uses `estimate_temporary_impact_aggregated()`
+    first (1-min aggregation) and only falls back to this function if
+    aggregated fails.
 
     Groups trades into quantity buckets and measures the average absolute
     price change per bucket. Then fits the power law.
@@ -378,38 +539,134 @@ def calibrated_params(
         pass
 
     # 3. Kyle's lambda → gamma (permanent impact)
-    trades_sorted = trades.sort_values("timestamp")
-    delta_prices = trades_sorted["price"].diff().dropna().values
-    signed_flows = (trades_sorted["quantity"] * trades_sorted["side"]).values[1:]
-    gamma = estimate_kyle_lambda(delta_prices, signed_flows)
-    if gamma is None or gamma <= 0:
-        msg = f"Kyle's lambda estimation failed (gamma={gamma}), using fallback 1e-4"
-        warnings.append(msg)
-        gamma = 1e-4
-        sources["gamma"] = "fallback"
-    else:
-        sources["gamma"] = "estimated"
+    # Cascade: aggregated_1min → aggregated_5min → tick-level → fallback
+    # Why: tick-level price.diff() is dominated by bid-ask bounce and
+    # empirically produces NEGATIVE gamma on real BTCUSDT data (e.g.,
+    # 2026-01 → gamma ≈ -0.0113, economically absurd). Bar-level
+    # aggregation recovers the positive γ ≈ 2.5 the audit report cites.
+    gamma = None
+    _gamma_method = None
+
+    # --- 3a. Try aggregated 1-min ---
+    try:
+        g1, g1_diag = estimate_kyle_lambda_aggregated(trades, freq="1min")
+        if g1 > 0 and g1_diag["r_squared"] >= 0.01:
+            gamma = g1
+            _gamma_method = "aggregated_1min"
+            sources["gamma"] = "aggregated_1min"
+            warnings.append(
+                f"[gamma aggregated_1min] γ={g1:.4e} r²={g1_diag['r_squared']:.3f} "
+                f"n_buckets={g1_diag['n_buckets']}"
+            )
+        else:
+            warnings.append(
+                f"[gamma aggregated_1min] γ={g1:.4e} r²={g1_diag['r_squared']:.3f} "
+                f"rejected (negative γ or low R²) — trying 5min"
+            )
+    except (ValueError, Exception) as e:
+        warnings.append(f"[gamma aggregated_1min] failed ({e}) — trying 5min")
+
+    # --- 3b. Try aggregated 5-min ---
+    if gamma is None:
+        try:
+            g5, g5_diag = estimate_kyle_lambda_aggregated(trades, freq="5min")
+            if g5 > 0 and g5_diag["r_squared"] >= 0.01:
+                gamma = g5
+                _gamma_method = "aggregated_5min"
+                sources["gamma"] = "aggregated_5min"
+                warnings.append(
+                    f"[gamma aggregated_5min] γ={g5:.4e} r²={g5_diag['r_squared']:.3f}"
+                )
+        except (ValueError, Exception) as e:
+            warnings.append(f"[gamma aggregated_5min] failed ({e})")
+
+    # --- 3c. Last resort: tick-level (known to give wrong sign on BTCUSDT) ---
+    if gamma is None:
+        trades_sorted = trades.sort_values("timestamp")
+        delta_prices = trades_sorted["price"].diff().dropna().values
+        signed_flows = (trades_sorted["quantity"] * trades_sorted["side"]).values[1:]
+        g_tick = estimate_kyle_lambda(delta_prices, signed_flows)
+        if g_tick is not None and g_tick > 0:
+            gamma = g_tick
+            sources["gamma"] = "tick_level"
+            warnings.append(
+                f"[gamma tick_level] γ={g_tick:.4e} — both aggregated "
+                f"frequencies failed; tick-level is known to be "
+                f"bid-ask-bounce-dominated"
+            )
+        else:
+            msg = (f"ALL gamma methods failed (tick={g_tick}); using "
+                   f"literature fallback γ=1e-4 — downstream AC "
+                   f"trajectory will be dominated by this magic constant")
+            warnings.append(msg)
+            gamma = 1e-4
+            sources["gamma"] = "fallback"
 
     # 4. Temporary impact → (eta, alpha)
+    # Cascade: aggregated_1min → aggregated_5min → trade_level → fallback
+    eta = alpha = None
+    _impact_method = None
+
+    # --- 4a. Try aggregated 1-min ---
     try:
-        eta, alpha = estimate_temporary_impact_from_trades(trades, n_buckets=20)
-        # Sanity check: alpha should be in [0.3, 1.5]
-        if alpha < 0.3 or alpha > 1.5:
-            msg = f"estimated alpha={alpha:.3f} out of range [0.3, 1.5], using literature fallback"
-            warnings.append(msg)
-            eta, alpha = 1e-3, 0.6
-            sources["eta"] = "fallback"
-            sources["alpha"] = "fallback"
+        eta_1, alpha_1, diag_1 = estimate_temporary_impact_aggregated(trades, freq="1min")
+        if 0.3 <= alpha_1 <= 1.5 and diag_1["r_squared"] >= 0.05:
+            eta, alpha = eta_1, alpha_1
+            _impact_method = "aggregated_1min"
+            warnings.append(
+                f"[aggregated_1min] alpha={alpha_1:.3f} r²={diag_1['r_squared']:.3f} "
+                f"n_buckets={diag_1['n_buckets']} p={diag_1['p_value']:.4f}"
+            )
         else:
-            sources["eta"] = "estimated"
-            sources["alpha"] = "estimated"
-    except ValueError as e:
-        msg = f"temporary impact estimation failed ({e}), using literature fallback"
-        warnings.append(msg)
-        alpha = 0.5
-        eta = sigma * 1e-3
-        sources["eta"] = "fallback"
-        sources["alpha"] = "fallback"
+            warnings.append(
+                f"[aggregated_1min] alpha={alpha_1:.3f} r²={diag_1['r_squared']:.3f} "
+                f"out of acceptance window — trying 5min"
+            )
+    except (ValueError, Exception) as e:
+        warnings.append(f"[aggregated_1min] failed ({e}) — trying 5min")
+
+    # --- 4b. Try aggregated 5-min ---
+    if eta is None:
+        try:
+            eta_5, alpha_5, diag_5 = estimate_temporary_impact_aggregated(trades, freq="5min")
+            if 0.3 <= alpha_5 <= 1.5 and diag_5["r_squared"] >= 0.05:
+                eta, alpha = eta_5, alpha_5
+                _impact_method = "aggregated_5min"
+                warnings.append(
+                    f"[aggregated_5min] alpha={alpha_5:.3f} r²={diag_5['r_squared']:.3f} "
+                    f"n_buckets={diag_5['n_buckets']} p={diag_5['p_value']:.4f}"
+                )
+            else:
+                warnings.append(
+                    f"[aggregated_5min] alpha={alpha_5:.3f} r²={diag_5['r_squared']:.3f} "
+                    f"out of acceptance window — trying trade-level"
+                )
+        except (ValueError, Exception) as e:
+            warnings.append(f"[aggregated_5min] failed ({e}) — trying trade-level")
+
+    # --- 4c. Fall back to trade-level ---
+    if eta is None:
+        try:
+            eta_tl, alpha_tl = estimate_temporary_impact_from_trades(trades, n_buckets=20)
+            if 0.3 <= alpha_tl <= 1.5:
+                eta, alpha = eta_tl, alpha_tl
+                _impact_method = "trade_level"
+                warnings.append(f"[trade_level] alpha={alpha_tl:.3f} accepted")
+            else:
+                warnings.append(
+                    f"[trade_level] alpha={alpha_tl:.3f} out of range [0.3, 1.5] — using literature fallback"
+                )
+        except (ValueError, Exception) as e:
+            warnings.append(f"[trade_level] failed ({e}) — using literature fallback")
+
+    # --- 4d. Literature fallback ---
+    if eta is None:
+        eta, alpha = 1e-3, 0.6
+        _impact_method = "fallback"
+        warnings.append("temporary impact: all methods failed, using literature fallback eta=1e-3 alpha=0.6")
+
+    sources["eta"] = _impact_method
+    sources["alpha"] = _impact_method
 
     # 5. S0 from most recent price
     S0 = float(trades["price"].iloc[-1])
@@ -425,6 +682,7 @@ def calibrated_params(
         eta=eta,
         alpha=alpha,
         lam=lam,
+        fee_bps=7.5,  # Binance BTCUSDT spot taker fee
     )
 
     return CalibrationResult(
