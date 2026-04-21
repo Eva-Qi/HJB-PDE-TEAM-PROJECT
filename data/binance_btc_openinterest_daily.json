@@ -1,0 +1,5 @@
+{
+  "n_rows": 0,
+  "data": [],
+  "note": "Empty if futures OI endpoints (fapi.binance.com, Bybit) blocked from region."
+}
