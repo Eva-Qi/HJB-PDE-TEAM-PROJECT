@@ -1,0 +1,63 @@
+{
+  "version": "v4_hires_blockbootstrap",
+  "n_paths": 100000,
+  "bootstrap_reps": 5000,
+  "lambda": 1e-06,
+  "seed": 42,
+  "regime_sigmas": {
+    "risk_on": 0.7036077257753593,
+    "risk_off": 2.4982397803183574,
+    "ratio": 3.5506144813366785
+  },
+  "stationary_probs": {
+    "risk_on": 0.9120929738156822,
+    "risk_off": 0.08790702618431775
+  },
+  "weights_used": {
+    "risk_on": 0.9120929738156822,
+    "risk_off": 0.08790702618431775
+  },
+  "results_iid_bootstrap": {
+    "mean_cost": {
+      "aware": 70.79174972349331,
+      "single": 60.97734805350861,
+      "diff": 9.81440166998471,
+      "p_value": 0.1052,
+      "significant": false,
+      "t_statistic": 1.6550641220142055,
+      "t_pvalue": 0.097914629727658
+    },
+    "objective": {
+      "aware": 206.54727867494222,
+      "single": 243.94138851650195,
+      "diff": -37.394109841559725,
+      "p_value": 0.0,
+      "significant": true
+    },
+    "var_95": {
+      "aware": 19046.062371855398,
+      "single": 22128.111884895054,
+      "diff": -3082.0495130396557,
+      "p_value": 0.0,
+      "significant": true
+    },
+    "cvar_95": {
+      "aware": 23727.804701898596,
+      "single": 27591.584748798305,
+      "diff": -3863.7800468997084,
+      "pct_reduction_single_to_aware": 14.003472732996924,
+      "p_value": 0.0,
+      "significant": true
+    }
+  },
+  "block_bootstrap_comparison": {
+    "ar1_coefficient_of_diff": 0.0023466655238921197,
+    "iid_p_value": 0.1052,
+    "block_p_value_n_cube_root": 0.1036,
+    "block_size_n_cube_root": 47,
+    "block_p_value_size10": 0.099,
+    "block_size_10": 10,
+    "max_abs_difference_iid_vs_block": 0.006199999999999997,
+    "materially_different": false
+  }
+}

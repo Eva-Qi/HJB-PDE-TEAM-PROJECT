@@ -376,6 +376,86 @@ def paired_bootstrap_test(
 
     return mean_diff, p_value
 
+def paired_bootstrap_test_block(
+    costs_a: np.ndarray,
+    costs_b: np.ndarray,
+    block_size: Optional[int] = None,
+    n_bootstrap: int = 5000,
+    seed: int = 42,
+) -> float:
+    """Paired bootstrap p-value with block resampling (preserves serial corr).
+
+    When per-path cost differences D_i = costs_a[i] - costs_b[i] exhibit
+    serial correlation (e.g. from regime-path autocorrelation), IID resampling
+    underestimates variance and inflates the test statistic.  Block bootstrap
+    resamples contiguous blocks of indices, preserving short-range dependence
+    up to the block length.
+
+    Method (circular block bootstrap):
+        1. Compute D_i = costs_a[i] - costs_b[i].
+        2. Shift D to mean=0 (null world).
+        3. Resample n_bootstrap arrays by drawing l = ceil(n/block_size)
+           non-overlapping blocks uniformly at random (with circular wrap).
+        4. P-value = fraction of null bootstrap means >= |observed mean_diff|.
+
+    Parameters
+    ----------
+    costs_a : np.ndarray, shape (n_paths,)
+        Realized execution costs for strategy A.
+    costs_b : np.ndarray, shape (n_paths,)
+        Paired with costs_a by index.
+    block_size : int or None
+        Block length.  If None, uses n**(1/3) heuristic (Politis & Romano 1994).
+    n_bootstrap : int
+        Number of bootstrap resamples.
+    seed : int
+        RNG seed.
+
+    Returns
+    -------
+    p_value : float
+        Two-sided block-bootstrap p-value under H_0: E[D] = 0.
+
+    Raises
+    ------
+    ValueError
+        If costs_a and costs_b have different shapes.
+    """
+    if costs_a.shape != costs_b.shape:
+        raise ValueError(
+            f"shape mismatch: {costs_a.shape} vs {costs_b.shape}"
+        )
+
+    diff = costs_a - costs_b
+    n = len(diff)
+    mean_diff = float(np.mean(diff))
+    shifted = diff - mean_diff  # null world: sample mean exactly 0
+
+    # Default block size: n^(1/3) heuristic (rounded up, min 1)
+    if block_size is None:
+        block_size = max(1, int(np.ceil(n ** (1.0 / 3.0))))
+
+    rng = np.random.default_rng(seed)
+
+    # Number of blocks needed to cover n observations
+    n_blocks = int(np.ceil(n / block_size))
+
+    null_boot_means = np.empty(n_bootstrap)
+    for b in range(n_bootstrap):
+        # Draw n_blocks block start indices uniformly from [0, n)
+        starts = rng.integers(0, n, size=n_blocks)
+        # Build index array with circular wrap
+        block_indices = np.concatenate([
+            np.arange(s, s + block_size) % n for s in starts
+        ])
+        # Trim to exactly n observations
+        block_indices = block_indices[:n]
+        null_boot_means[b] = shifted[block_indices].mean()
+
+    p_value = float(np.mean(np.abs(null_boot_means) >= abs(mean_diff)))
+    return p_value
+
+
 def paired_strategy_test(
     costs_a: np.ndarray,
     costs_b: np.ndarray,
