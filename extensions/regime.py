@@ -207,22 +207,26 @@ def _fit_hmm_rolling_vol(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Fit HMM using Yuhao's rolling-vol-feature EM approach.
 
+    Supports n_regimes=2 or 3.
+
     Returns (means, stds, A, pi, state_sequence) — where state_sequence
     is aligned back to the original returns length.
     """
     window = min(20, max(10, len(returns) // 20))
     x = _rolling_vol_feature(returns, window=window)
 
-    q_low, q_high = np.quantile(x, [0.3, 0.7])
-    means = np.array([q_low, q_high], dtype=float)
+    # Initialise means at evenly-spaced quantiles so all regimes start distinct
+    quantile_points = np.linspace(0.2, 0.8, n_regimes)
+    means = np.quantile(x, quantile_points).astype(float)
 
     common_var = np.var(x, ddof=1)
-    var = np.array([common_var, common_var], dtype=float)
+    var = np.full(n_regimes, common_var, dtype=float)
     var = np.maximum(var, 1e-6)
 
-    pi = np.array([0.5, 0.5], dtype=float)
-    A = np.array([[0.95, 0.05],
-                  [0.05, 0.95]], dtype=float)
+    pi = np.ones(n_regimes, dtype=float) / n_regimes
+    # Sticky transition matrix: high self-transition, low cross-transition
+    A = np.full((n_regimes, n_regimes), (1.0 - 0.9) / (n_regimes - 1), dtype=float)
+    np.fill_diagonal(A, 0.9)
 
     prev_loglik = -np.inf
 
@@ -438,7 +442,23 @@ def _fit_hmm_hmmlearn(
     n_regimes: int = 2,
     n_init: int = 5,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Fit using hmmlearn with multiple random restarts."""
+    """Fit using hmmlearn with multiple random restarts.
+
+    For n_regimes=3 we automatically increase n_init to improve the chance
+    of escaping degenerate local optima.  The degeneracy threshold is also
+    adjusted proportionally to n_regimes so that small-but-real states are
+    not rejected too aggressively.
+    """
+    # For 3-state models, use more restarts and a looser degeneracy guard
+    if n_regimes == 3:
+        n_init = max(n_init, 15)
+
+    # Minimum fraction of data that any state must cover to avoid rejection.
+    # For 2 states: 5%; for 3 states: 3% (each state should get ~1/K of data
+    # at minimum, 3% is conservative enough to allow unequal regime frequencies
+    # while still rejecting near-empty "phantom" states).
+    min_state_frac = 0.05 / max(n_regimes - 1, 1)  # 5% / (K-1)
+
     X = returns.reshape(-1, 1)
     best_score = -np.inf
     best_model = None
@@ -455,9 +475,9 @@ def _fit_hmm_hmmlearn(
         try:
             model.fit(X)
             score = model.score(X)
-            # Reject degenerate solutions where one state has <5% of data
+            # Reject degenerate solutions where one state has too few observations
             counts = np.bincount(model.predict(X), minlength=n_regimes)
-            if counts.min() < 0.05 * len(returns):
+            if counts.min() < min_state_frac * len(returns):
                 continue
         except Exception:
             continue
@@ -597,7 +617,9 @@ def fit_hmm(
         2-D array of shape ``(T, d)`` as a shorthand for ``features``.
         One of ``returns`` or ``features`` must be provided.
     n_regimes : int
-        Number of regimes (default 2: risk-on, risk-off).
+        Number of regimes. Supported values: 2 or 3.
+        - 2: "risk_on" (lower σ), "risk_off" (higher σ)
+        - 3: "risk_on" (lowest σ), "neutral" (mid σ), "risk_off" (highest σ)
     use_abs_return_for_impact : bool
         If True, use mean |return| ratio for gamma/eta scaling.
         If False, use vol ratio for all three.
@@ -609,24 +631,27 @@ def fit_hmm(
     Returns
     -------
     regimes : list[RegimeParams]
-        Per-regime parameter multipliers.  Convention: regime with
-        *higher* vol is labelled ``"risk_off"``; lower vol is
-        ``"risk_on"``.  sigma/gamma/eta are dimensionless multipliers
-        (~0.8–1.2x) applied to base ACParams.
+        Per-regime parameter multipliers sorted by ascending sigma.
+        For n_regimes=2: [risk_on, risk_off].
+        For n_regimes=3: [risk_on, neutral, risk_off].
+        sigma/gamma/eta are dimensionless multipliers (ratio vs overall vol)
+        applied to base ACParams.
     state_sequence : np.ndarray
-        Most likely regime at each time step (Viterbi path).
+        Most likely regime at each time step (Viterbi path), with canonical
+        labels 0=risk_on, 1=neutral (if 3-state), last=risk_off.
 
     Raises
     ------
     NotImplementedError
         If ``features`` has d > 1 and hmmlearn is not installed.
     ValueError
-        On invalid inputs (wrong shape, NaN, too few observations).
+        On invalid inputs (wrong shape, NaN, too few observations,
+        unsupported n_regimes).
     """
-    if n_regimes != 2:
+    if n_regimes not in (2, 3):
         raise ValueError(
-            "This implementation is designed for 2 regimes "
-            "(risk_on / risk_off)."
+            f"n_regimes={n_regimes} is not supported. "
+            "Use 2 (risk_on/risk_off) or 3 (risk_on/neutral/risk_off)."
         )
 
     # ── Resolve input: 1-D vs 2-D ────────────────────────────────────
@@ -709,8 +734,7 @@ def fit_hmm(
 
     overall_mean_ret = np.mean(r)
 
-    # Identify which raw state index corresponds to risk_off (higher vol)
-    # by comparing per-state return volatilities.
+    # Compute per-state return volatility for all raw state indices.
     vol_per_state = []
     for s in range(n_regimes):
         mask = state_sequence_raw == s
@@ -719,20 +743,29 @@ def fit_hmm(
         else:
             vol_per_state.append(float(np.std(r[mask], ddof=1)))
 
-    risk_off_raw = int(np.argmax(vol_per_state))
-    risk_on_raw = 1 - risk_off_raw
+    # Sort raw states by ascending volatility to assign canonical labels:
+    #   n_regimes=2: [0=risk_on, 1=risk_off]
+    #   n_regimes=3: [0=risk_on, 1=neutral, 2=risk_off]
+    raw_states_sorted_by_vol = sorted(range(n_regimes), key=lambda s: vol_per_state[s])
 
-    # Build label map: raw state index -> 0=risk_on, 1=risk_off
-    label_map = {risk_on_raw: 0, risk_off_raw: 1}
+    if n_regimes == 2:
+        canonical_labels = ["risk_on", "risk_off"]
+    else:  # n_regimes == 3
+        canonical_labels = ["risk_on", "neutral", "risk_off"]
 
-    # Remap state sequence to canonical ordering (0=risk_on, 1=risk_off)
+    # Build label map: raw state index -> canonical index (0-based)
+    label_map = {
+        raw_s: canonical_idx
+        for canonical_idx, raw_s in enumerate(raw_states_sorted_by_vol)
+    }
+
+    # Remap state sequence to canonical ordering
     remapped_states = np.array([label_map[s] for s in state_sequence_raw], dtype=int)
 
     regimes: list[RegimeParams] = []
 
-    for canonical_idx, (raw_state, label) in enumerate(
-        [(risk_on_raw, "risk_on"), (risk_off_raw, "risk_off")]
-    ):
+    for canonical_idx, raw_state in enumerate(raw_states_sorted_by_vol):
+        label = canonical_labels[canonical_idx]
         mask = state_sequence_raw == raw_state
 
         if mask.sum() < 2:
@@ -749,6 +782,7 @@ def fit_hmm(
 
             state_mean_ret = float(np.mean(state_r))
 
+        # Dimensionless multipliers: ratio relative to overall (pooled) statistics.
         sigma_scale = state_vol / overall_vol
 
         if use_abs_return_for_impact:

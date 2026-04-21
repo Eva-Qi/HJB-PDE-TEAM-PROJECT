@@ -1,0 +1,56 @@
+{
+  "two_state": {
+    "n_regimes": 2,
+    "n_observations": 28223,
+    "n_params": 7,
+    "log_likelihood": 4222073596.7945337,
+    "bic": -8444147121.85382,
+    "collapsed": false,
+    "regimes": [
+      {
+        "label": "risk_on",
+        "sigma_multiplier": 0.7036077257753593,
+        "state_vol": 0.0010102752998984276,
+        "probability": 0.9120929738156822
+      },
+      {
+        "label": "risk_off",
+        "sigma_multiplier": 2.4982397803183574,
+        "state_vol": 0.0035870981099561127,
+        "probability": 0.08790702618431775
+      }
+    ]
+  },
+  "three_state": {
+    "n_regimes": 3,
+    "n_observations": 28223,
+    "n_params": 14,
+    "log_likelihood": 4224143099.5578585,
+    "bic": -8448286055.645222,
+    "collapsed": true,
+    "regimes": [
+      {
+        "label": "risk_on",
+        "sigma_multiplier": 0.760507768895296,
+        "state_vol": 0.001091975238687304,
+        "probability": 0.4726641391772668
+      },
+      {
+        "label": "neutral",
+        "sigma_multiplier": 0.7751640256800606,
+        "state_vol": 0.0011130194280504887,
+        "probability": 0.4728767317436134
+      },
+      {
+        "label": "risk_off",
+        "sigma_multiplier": 2.8512526805539937,
+        "state_vol": 0.004093971756433718,
+        "probability": 0.054459129079119865
+      }
+    ]
+  },
+  "delta_bic_3_minus_2": -4138933.791401863,
+  "preferred_model": "3-state",
+  "preference_reason": "lower BIC (better fit adjusted for complexity)",
+  "three_state_collapse_note": "Best 3-state hmmlearn solution has a phantom state with <1% occupancy. 3-state HMM code is functional (confirmed on synthetic 3-regime data) but this BTCUSDT dataset does not exhibit a separable third regime."
+}

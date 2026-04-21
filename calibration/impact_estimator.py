@@ -482,6 +482,253 @@ class CalibrationResult:
     sigma_rs: float | None = None
 
 
+def calibrated_params_per_regime(
+    trades_df,
+    state_sequence: "np.ndarray",
+    bar_timestamps: "pd.DatetimeIndex",
+    X0: float = 10.0,
+    T: float = 1.0 / (365.25 * 24),
+    N: int = 50,
+    lam: float = 1e-6,
+) -> "dict[int, CalibrationResult]":
+    """Calibrate impact parameters independently for each HMM regime.
+
+    This replaces Yuhao's sigma-multiplier scaling with true regime-
+    conditional impact calibration.  The HMM state_sequence is indexed
+    to 5-min return bars; trades are tick-level.  For each trade we look
+    up which 5-min bar it falls into (merge_asof on timestamp) and assign
+    that bar's regime label.
+
+    Parameters
+    ----------
+    trades_df : pd.DataFrame
+        Full trade data with columns: timestamp, price, quantity, side.
+        ``timestamp`` must be UTC-aware.
+    state_sequence : np.ndarray, shape (T_bars,)
+        Integer regime labels (0, 1, …) from fit_hmm Viterbi output,
+        aligned to ``bar_timestamps``.
+    bar_timestamps : pd.DatetimeIndex
+        UTC timestamps of the 5-min return bars, length must equal
+        len(state_sequence).  Typically the index of the 5-min OHLC /
+        mid-price DataFrame after dropna().
+    X0, T, N, lam : float / int
+        Passed through to calibrated_params for each sub-sample.
+
+    Returns
+    -------
+    dict[int, CalibrationResult]
+        Keys are unique regime labels from state_sequence.
+        Values are CalibrationResult objects (or a CalibrationResult
+        whose ``warnings`` list documents why calibration failed for
+        that regime if there was insufficient data).
+    """
+    import pandas as pd
+
+    state_sequence = np.asarray(state_sequence, dtype=int)
+    bar_ts = pd.DatetimeIndex(bar_timestamps)
+    if bar_ts.tz is None:
+        bar_ts = bar_ts.tz_localize("UTC")
+    else:
+        bar_ts = bar_ts.tz_convert("UTC")
+
+    if len(bar_ts) != len(state_sequence):
+        raise ValueError(
+            f"bar_timestamps length ({len(bar_ts)}) != "
+            f"state_sequence length ({len(state_sequence)})."
+        )
+
+    # Build a lookup DataFrame: for each bar start timestamp → regime label
+    bar_label_df = pd.DataFrame(
+        {"bar_ts": bar_ts, "regime": state_sequence}
+    ).sort_values("bar_ts").reset_index(drop=True)
+
+    # Assign each trade to its bar via merge_asof (forward-fill: each trade
+    # belongs to the most recent bar that started at or before its timestamp)
+    trades_sorted = trades_df.sort_values("timestamp").reset_index(drop=True)
+    trade_ts = trades_sorted["timestamp"].copy()
+    if trade_ts.dt.tz is None:
+        trade_ts = trade_ts.dt.tz_localize("UTC")
+    else:
+        trade_ts = trade_ts.dt.tz_convert("UTC")
+    trades_sorted = trades_sorted.copy()
+    trades_sorted["timestamp"] = trade_ts
+
+    merged = pd.merge_asof(
+        trades_sorted,
+        bar_label_df.rename(columns={"bar_ts": "timestamp"}),
+        on="timestamp",
+        direction="backward",
+    )
+
+    # Trades before the first bar have no regime — drop them
+    merged = merged.dropna(subset=["regime"])
+    merged["regime"] = merged["regime"].astype(int)
+
+    results: dict[int, CalibrationResult] = {}
+    unique_regimes = sorted(merged["regime"].unique().tolist())
+
+    for regime_label in unique_regimes:
+        sub = merged[merged["regime"] == regime_label].reset_index(drop=True)
+
+        # Need enough data for calibration to be meaningful
+        if len(sub) < 200:
+            # Return a fallback CalibrationResult with a documenting warning
+            fallback_params = ACParams(
+                S0=float(trades_df["price"].iloc[-1]),
+                sigma=0.0,
+                mu=0.0,
+                X0=X0,
+                T=T,
+                N=N,
+                gamma=1e-4,
+                eta=1e-3,
+                alpha=0.6,
+                lam=lam,
+                fee_bps=7.5,
+            )
+            results[regime_label] = CalibrationResult(
+                params=fallback_params,
+                sources={
+                    "sigma": "insufficient_data",
+                    "gamma": "insufficient_data",
+                    "eta": "insufficient_data",
+                    "alpha": "insufficient_data",
+                },
+                warnings=[
+                    f"Regime {regime_label}: only {len(sub)} trades — "
+                    "too few for stable calibration (need ≥ 200). "
+                    "Returned fallback literature constants."
+                ],
+                sigma_rs=None,
+            )
+            continue
+
+        # Write sub-sample to a temporary in-memory structure so we can
+        # reuse calibrated_params() logic.  We call each estimator directly
+        # rather than going through the file-based interface.
+        try:
+            from calibration.data_loader import compute_ohlc
+
+            ohlc_sub = compute_ohlc(sub, freq="5min")
+            sigma_gk = estimate_realized_vol_gk(
+                ohlc_sub, freq_seconds=300.0, annualize=True
+            )
+
+            sigma_rs_sub = None
+            sub_warnings = []
+            try:
+                sigma_rs_sub = estimate_realized_vol_rs(
+                    ohlc_sub, freq_seconds=300.0, annualize=True
+                )
+            except ValueError:
+                pass
+
+            # Kyle's lambda — try 1-min, then 5-min
+            gamma_sub = None
+            gamma_source = None
+            for freq in ("1min", "5min"):
+                try:
+                    g, g_diag = estimate_kyle_lambda_aggregated(sub, freq=freq)
+                    if g > 0 and g_diag["r_squared"] >= 0.01:
+                        gamma_sub = g
+                        gamma_source = f"aggregated_{freq}"
+                        break
+                    else:
+                        sub_warnings.append(
+                            f"[gamma {freq}] γ={g:.4e} r²={g_diag['r_squared']:.3f} "
+                            f"rejected for regime {regime_label}"
+                        )
+                except Exception as exc:
+                    sub_warnings.append(
+                        f"[gamma {freq}] failed ({exc}) for regime {regime_label}"
+                    )
+            if gamma_sub is None:
+                gamma_sub = 1e-4
+                gamma_source = "fallback"
+                sub_warnings.append(
+                    f"Regime {regime_label}: all gamma methods failed — "
+                    "using literature fallback γ=1e-4"
+                )
+
+            # Temporary impact
+            eta_sub = alpha_sub = None
+            impact_source = None
+            for freq in ("1min", "5min"):
+                try:
+                    e, a, d = estimate_temporary_impact_aggregated(sub, freq=freq)
+                    if 0.3 <= a <= 1.5 and d["r_squared"] >= 0.05:
+                        eta_sub, alpha_sub = e, a
+                        impact_source = f"aggregated_{freq}"
+                        break
+                    else:
+                        sub_warnings.append(
+                            f"[impact {freq}] alpha={a:.3f} r²={d['r_squared']:.3f} "
+                            f"out of window for regime {regime_label}"
+                        )
+                except Exception as exc:
+                    sub_warnings.append(
+                        f"[impact {freq}] failed ({exc}) for regime {regime_label}"
+                    )
+            if eta_sub is None:
+                eta_sub, alpha_sub = 1e-3, 0.6
+                impact_source = "fallback"
+                sub_warnings.append(
+                    f"Regime {regime_label}: all impact methods failed — "
+                    "using literature fallback eta=1e-3 alpha=0.6"
+                )
+
+            S0 = float(sub["price"].iloc[-1])
+            params_sub = ACParams(
+                S0=S0,
+                sigma=sigma_gk,
+                mu=0.0,
+                X0=X0,
+                T=T,
+                N=N,
+                gamma=gamma_sub,
+                eta=eta_sub,
+                alpha=alpha_sub,
+                lam=lam,
+                fee_bps=7.5,
+            )
+            results[regime_label] = CalibrationResult(
+                params=params_sub,
+                sources={
+                    "sigma": "estimated",
+                    "gamma": gamma_source,
+                    "eta": impact_source,
+                    "alpha": impact_source,
+                },
+                warnings=sub_warnings,
+                sigma_rs=sigma_rs_sub,
+            )
+
+        except Exception as exc:
+            fallback_params = ACParams(
+                S0=float(trades_df["price"].iloc[-1]),
+                sigma=0.0,
+                mu=0.0,
+                X0=X0,
+                T=T,
+                N=N,
+                gamma=1e-4,
+                eta=1e-3,
+                alpha=0.6,
+                lam=lam,
+                fee_bps=7.5,
+            )
+            results[regime_label] = CalibrationResult(
+                params=fallback_params,
+                sources={k: "error" for k in ("sigma", "gamma", "eta", "alpha")},
+                warnings=[
+                    f"Regime {regime_label}: calibration raised exception: {exc!r}"
+                ],
+                sigma_rs=None,
+            )
+
+    return results
+
+
 def calibrated_params(
     trades_path: str = "data/",
     X0: float = 10.0,
