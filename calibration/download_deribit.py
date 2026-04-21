@@ -189,6 +189,135 @@ def snapshot_to_dataframe(snapshot: dict):
     return df.reset_index(drop=True)
 
 
+def fetch_volatility_index_data(
+    start_timestamp: int,
+    end_timestamp: int,
+    resolution: str = "3600",
+) -> list[dict]:
+    """Fetch Deribit's BTC DVOL (implied volatility index) time series.
+
+    Uses the public ``get_volatility_index_data`` endpoint which returns
+    historical data up to 1 year back.  This is a *proxy* for the IV
+    surface level over time (not full calibration data, but useful as a
+    vol-regime indicator alongside repeated snapshot calibrations).
+
+    Parameters
+    ----------
+    start_timestamp : int
+        Unix timestamp in milliseconds.
+    end_timestamp : int
+        Unix timestamp in milliseconds.
+    resolution : str
+        Candle resolution in seconds.  Deribit accepts ``"3600"`` (1h),
+        ``"1D"`` (daily), etc.
+
+    Returns
+    -------
+    list of dicts with keys: timestamp_ms, open, high, low, close
+    """
+    result = _get("get_volatility_index_data", {
+        "currency": "BTC",
+        "start_timestamp": start_timestamp,
+        "end_timestamp": end_timestamp,
+        "resolution": resolution,
+    })
+    # API returns {"data": [[ts, o, h, l, c], ...]}
+    rows = result.get("data", [])
+    candles = []
+    for row in rows:
+        if len(row) >= 5:
+            candles.append({
+                "timestamp_ms": int(row[0]),
+                "open": float(row[1]),
+                "high": float(row[2]),
+                "low": float(row[3]),
+                "close": float(row[4]),
+            })
+    return candles
+
+
+def download_deribit_snapshots_range(
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[Path]:
+    """Infrastructure for a 7-day daily snapshot time series.
+
+    IMPORTANT — Deribit's public REST API provides **current** snapshots only.
+    Historical option chains (with per-instrument mark_iv, OI, etc.) are NOT
+    available via the public API.  True historical IV surfaces would require
+    Deribit's paid historical data product or a third-party data vendor.
+
+    This function therefore:
+        1. Fetches today's live snapshot (if not already saved).
+        2. Attempts to fetch the DVOL index time series as a historical
+           vol-level proxy (available via ``get_volatility_index_data``).
+        3. Saves the DVOL series to ``data/deribit_dvol_history.json``.
+        4. Returns the list of snapshot files present (typically just today's).
+
+    To accumulate a multi-day time series, call this script once per day
+    (e.g., via a cron job or manual run).  Each day's snapshot is saved
+    with a YYYYMMDD suffix so repeated runs are idempotent.
+
+    Parameters
+    ----------
+    start_date : str, optional
+        Ignored (no historical snapshots available).  Kept for API symmetry.
+    end_date : str, optional
+        Ignored.  Kept for API symmetry.
+
+    Returns
+    -------
+    list of Path
+        Paths to snapshot JSON files found in data/.
+    """
+    saved_paths: list[Path] = []
+
+    # 1. Today's snapshot
+    print("[download_deribit_snapshots_range] Fetching today's snapshot ...")
+    try:
+        snap = fetch_snapshot()
+        path = save_snapshot(snap)
+        saved_paths.append(path)
+    except Exception as exc:
+        print(f"[download_deribit_snapshots_range] WARNING: snapshot fetch failed: {exc}")
+
+    # 2. DVOL historical series as vol-level proxy (7-day window)
+    try:
+        now_ms = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+        seven_days_ms = 7 * 24 * 3600 * 1000
+        start_ms = now_ms - seven_days_ms
+        candles = fetch_volatility_index_data(start_ms, now_ms, resolution="1D")
+        if candles:
+            dvol_path = DATA_DIR / "deribit_dvol_history.json"
+            with open(dvol_path, "w") as f:
+                json.dump({
+                    "note": (
+                        "Deribit DVOL index (daily candles, last 7 days). "
+                        "This is a vol-level proxy, not a full calibrated surface."
+                    ),
+                    "candles": candles,
+                }, f, indent=2)
+            print(
+                f"[download_deribit_snapshots_range] Saved {len(candles)} DVOL candles "
+                f"→ {dvol_path.name}"
+            )
+        else:
+            print("[download_deribit_snapshots_range] DVOL endpoint returned no data.")
+    except Exception as exc:
+        print(
+            f"[download_deribit_snapshots_range] WARNING: DVOL fetch failed: {exc}\n"
+            f"  Historical vol index is unavailable (may need different API params)."
+        )
+
+    # 3. Return all snapshot files present
+    existing = sorted(DATA_DIR.glob("deribit_btc_option_chain_*.json"))
+    print(
+        f"[download_deribit_snapshots_range] Total snapshot files in data/: "
+        f"{len(existing)}"
+    )
+    return existing
+
+
 if __name__ == "__main__":
     print("[download_deribit] Fetching Deribit BTC option chain ...")
     snap = fetch_snapshot()

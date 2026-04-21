@@ -1,0 +1,44 @@
+{
+  "snapshot_date": "20260420",
+  "underlying_price": 76272.31,
+  "n_contracts_filtered": 203,
+  "heston_bid_ask_oi": {
+    "kappa": 2.175324,
+    "theta": 0.725617,
+    "xi": 0.027581,
+    "rho": 0.6094,
+    "v0": 0.141443,
+    "feller_margin": 3.156143,
+    "fit_rmse": 0.098329,
+    "n_valid_contracts": 23
+  },
+  "heston_mark_iv_unweighted": {
+    "kappa": 2.215278,
+    "theta": 0.80294,
+    "xi": 0.017829,
+    "rho": 0.562862,
+    "v0": 0.157255,
+    "feller_margin": 3.557152,
+    "fit_rmse": 0.082683,
+    "n_valid_contracts": 23
+  },
+  "model_32": {
+    "p": 4.512857,
+    "q": 9.110669,
+    "long_run_variance_pq": 0.495338,
+    "xi": 1.000404,
+    "rho": -0.233143,
+    "v0": 0.238378,
+    "fit_rmse": 0.131703,
+    "n_valid_contracts": 183
+  },
+  "task2_param_delta": {
+    "kappa": -0.039954,
+    "theta": -0.077323,
+    "xi": 0.009751,
+    "rho": 0.046538,
+    "v0": -0.015812
+  },
+  "task3_winner": "Heston",
+  "task3_rmse_improvement_pct": 33.941
+}

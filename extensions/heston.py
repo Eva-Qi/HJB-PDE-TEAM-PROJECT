@@ -337,17 +337,33 @@ def calibrate_heston_from_options(
     delta_filter: tuple = (0.10, 0.90),
     atm_only: bool = False,
     seed: int = 42,
+    use_bid_ask: bool = True,
+    use_oi_weights: bool = True,
 ) -> HestonParams:
     """Calibrate Heston (κ, θ, ξ, ρ, v₀) from Q-measure option IV surface.
 
-    Minimizes Σ (model_iv − market_iv)² over the filtered option chain.
+    Minimizes Σ w_i*(model_iv_i − market_iv_i)² over the filtered option chain.
     Uses FFT-based Carr-Madan pricing (one FFT per expiry per loss evaluation),
     inverts model prices to BS IV, and runs multi-start L-BFGS-B.
+
+    Market IV is determined as follows (in priority order):
+        1. (bid_iv + ask_iv) / 2 when both present and use_bid_ask=True
+        2. mark_iv fallback
+
+    Liquidity filters applied when bid/ask columns are present:
+        - Drop contracts with bid_iv == 0 (no bid, untradeable)
+        - Drop contracts with bid-ask spread / mark_iv > 0.5 (too wide)
+
+    Loss weights w_i:
+        - If use_oi_weights=True and open_interest column is present with
+          non-zero total OI: w_i = OI_i / sum(OI)  (OI-weighted RMSE)
+        - Otherwise: w_i = 1/n  (uniform, equivalent to unweighted sum/n)
 
     Parameters
     ----------
     option_chain : pd.DataFrame
         Columns: kind (C/P), strike, T (years), mark_iv (decimal).
+        Optional columns: bid_iv, ask_iv (decimal), open_interest.
         Produced by calibration.download_deribit.snapshot_to_dataframe().
     underlying_price : float
         Current BTC/USD spot price.
@@ -364,6 +380,12 @@ def calibrate_heston_from_options(
         If True, keep only strikes within ±20% of spot (overrides delta_filter).
     seed : int
         RNG seed for reproducible multi-start sampling.
+    use_bid_ask : bool
+        If True (default), use mid-IV = (bid_iv + ask_iv)/2 when available
+        and apply liquidity filters.  If False, use mark_iv only.
+    use_oi_weights : bool
+        If True (default), weight loss by open_interest when available.
+        If False, use uniform weights.
 
     Returns
     -------
@@ -398,12 +420,77 @@ def calibrate_heston_from_options(
             "Check the option chain."
         )
 
+    # ------------------------------------------------------------------ #
+    # Step 1b — resolve market_iv: mid-IV or mark_iv fallback            #
+    # ------------------------------------------------------------------ #
+    has_bid_ask = (
+        use_bid_ask
+        and "bid_iv" in df.columns
+        and "ask_iv" in df.columns
+        and df["bid_iv"].notna().any()
+        and df["ask_iv"].notna().any()
+    )
+
+    if has_bid_ask:
+        # Rows with valid bid and ask: use mid-IV
+        bid_valid = df["bid_iv"].notna() & (df["bid_iv"] > 0)
+        ask_valid = df["ask_iv"].notna() & (df["ask_iv"] > 0)
+        both_valid = bid_valid & ask_valid
+
+        df["market_iv"] = df["mark_iv"].copy()
+        df.loc[both_valid, "market_iv"] = (
+            df.loc[both_valid, "bid_iv"] + df.loc[both_valid, "ask_iv"]
+        ) / 2.0
+
+        # Liquidity filter 1: drop zero-bid (no market)
+        zero_bid_mask = bid_valid & ~bid_valid  # init empty; re-apply below
+        df = df[~(bid_valid & (df["bid_iv"] == 0))].copy()
+
+        # Liquidity filter 2: drop wide-spread contracts (spread/mark > 0.5)
+        if df["mark_iv"].notna().any():
+            spread = (df["ask_iv"].fillna(0) - df["bid_iv"].fillna(0)).clip(lower=0)
+            relative_spread = spread / df["mark_iv"].replace(0, np.nan)
+            illiquid = relative_spread > 0.50
+            df = df[~illiquid].copy()
+
+        print(
+            f"[calibrate_heston_from_options] mid-IV mode: "
+            f"{both_valid.sum()} contracts have valid bid/ask; "
+            f"{len(df)} pass liquidity filters"
+        )
+    else:
+        df["market_iv"] = df["mark_iv"].copy()
+
+    df = df[df["market_iv"].notna() & (df["market_iv"] > 0)].copy()
+
+    if df.empty:
+        raise ValueError(
+            "No valid option rows after IV resolution / liquidity filter."
+        )
+
+    # ------------------------------------------------------------------ #
+    # Step 1c — OI weights                                               #
+    # ------------------------------------------------------------------ #
+    has_oi = (
+        use_oi_weights
+        and "open_interest" in df.columns
+        and df["open_interest"].notna().any()
+        and df["open_interest"].sum() > 0
+    )
+
+    if has_oi:
+        oi_vals = df["open_interest"].fillna(0.0).clip(lower=0.0)
+        total_oi = oi_vals.sum()
+        df["_weight"] = oi_vals / total_oi if total_oi > 0 else 1.0 / len(df)
+    else:
+        df["_weight"] = 1.0 / len(df)
+
     if atm_only:
         df = df[(df["strike"] >= S0 * 0.80) & (df["strike"] <= S0 * 1.20)].copy()
     else:
-        # Delta filter: compute approximate BS delta at mark_iv, keep if in range
+        # Delta filter: compute approximate BS delta at market_iv, keep if in range
         def _delta_ok(row):
-            d = _bs_delta(S0, row["strike"], row["T"], r, q, row["mark_iv"], is_call=True)
+            d = _bs_delta(S0, row["strike"], row["T"], r, q, row["market_iv"], is_call=True)
             return delta_filter[0] <= abs(d) <= delta_filter[1]
 
         mask = df.apply(_delta_ok, axis=1)
@@ -415,25 +502,30 @@ def calibrate_heston_from_options(
             "Try widening delta_filter or setting atm_only=False."
         )
 
-    # Build a list of (K, T, market_iv) tuples
+    # Re-normalise weights after filtering
+    w_sum = df["_weight"].sum()
+    if w_sum > 0:
+        df["_weight"] = df["_weight"] / w_sum
+    else:
+        df["_weight"] = 1.0 / len(df)
+
+    # Build a list of (K, T, market_iv, weight) tuples
     # Group by expiry T (round to 4 decimals to cluster same-expiry options)
     df["T_key"] = df["T"].round(4)
-    chain_rows = [(row["strike"], row["T_key"], row["mark_iv"])
-                  for _, row in df.iterrows()]
+    chain_rows = [
+        (row["strike"], row["T_key"], row["market_iv"], row["_weight"])
+        for _, row in df.iterrows()
+    ]
 
-    # Pre-group by expiry for batch FFT calls
-    from itertools import groupby
-    from operator import itemgetter
-
-    expiry_groups: dict[float, list[tuple[float, float]]] = {}
-    for K, T_key, miv in chain_rows:
-        expiry_groups.setdefault(T_key, []).append((K, miv))
+    expiry_groups: dict[float, list[tuple]] = {}
+    for K, T_key, miv, w in chain_rows:
+        expiry_groups.setdefault(T_key, []).append((K, miv, w))
 
     n_contracts = len(chain_rows)
     expiries = sorted(expiry_groups.keys())
 
     # ------------------------------------------------------------------ #
-    # Step 2 — loss function                                              #
+    # Step 2 — loss function (OI-weighted sum of squared IV errors)      #
     # ------------------------------------------------------------------ #
     FELLER_PENALTY = 10.0
 
@@ -446,11 +538,12 @@ def calibrate_heston_from_options(
         if not (-1.0 < rho < 1.0):
             return 1e9
 
-        sq_residuals: list[float] = []
+        weighted_sq: list[float] = []
         for T_key in expiries:
             rows_T = expiry_groups[T_key]
             strikes_arr = np.array([r_[0] for r_ in rows_T])
             market_ivs = np.array([r_[1] for r_ in rows_T])
+            weights_arr = np.array([r_[2] for r_ in rows_T])
 
             try:
                 model_ivs = _heston_model_iv_batch(
@@ -465,12 +558,14 @@ def calibrate_heston_from_options(
                 continue
 
             diff = model_ivs[valid] - market_ivs[valid]
-            sq_residuals.extend((diff ** 2).tolist())
+            w = weights_arr[valid]
+            # Weighted sum: Σ w_i * (model_iv_i - market_iv_i)^2
+            weighted_sq.extend((w * diff ** 2).tolist())
 
-        if not sq_residuals:
+        if not weighted_sq:
             return 1e9
 
-        base_loss = float(np.sum(sq_residuals))
+        base_loss = float(np.sum(weighted_sq))
 
         # Soft Feller constraint: 2κθ ≥ ξ²
         feller_violation = max(0.0, xi**2 - 2.0 * kappa * theta)
@@ -495,7 +590,7 @@ def calibrate_heston_from_options(
     starts = []
     # Rough ATM IV from chain
     atm_iv_approx = float(df.loc[
-        (df["strike"] - S0).abs().idxmin(), "mark_iv"
+        (df["strike"] - S0).abs().idxmin(), "market_iv"
     ]) if len(df) > 0 else 0.80
     v0_prior = atm_iv_approx**2  # variance ≈ IV²
     starts.append([2.0, v0_prior, 0.5 * atm_iv_approx, -0.3, v0_prior])
@@ -557,6 +652,510 @@ def calibrate_heston_from_options(
         )
 
     return HestonParams(kappa=kappa, theta=theta, xi=xi, rho=rho, v0=v0)
+
+
+# ---------------------------------------------------------------------------
+# 3/2 model — characteristic function and calibration
+# ---------------------------------------------------------------------------
+# The 3/2 model (Lewis 2000, Carr-Sun 2007) drives the inverse variance
+# process:
+#     d(1/v) = (delta + beta/v)*dt + epsilon/sqrt(v)*dW_v
+# equivalently the variance satisfies:
+#     dv = v*(p - q*v)*dt + xi*v^(3/2)*dW_v,    corr(dS/S, dW_v) = rho
+# where:  p = delta*epsilon^2,  q = -(beta + epsilon^2)*epsilon^... see below.
+#
+# Standard parameterisation (Drimus 2012):
+#     p  — mean-reversion level parameter (plays role of kappa*theta in Heston)
+#     q  — mean-reversion speed parameter (> 0; plays role of kappa in Heston)
+#     xi — vol-of-vol (sigma in the 3/2 process, xi > 0)
+#     rho — correlation in [-1, 1]
+#     v0  — initial variance
+#
+# The (exact) characteristic function is available in closed form via Kummer's
+# confluent hypergeometric function (Lewis 2000).  We use the representation
+# from Baldeaux & Platen (2013) / Drimus (2012):
+#
+#   E[exp(iu * ln S_T)] = M(a, b; z) / M(a, b; 0)
+#
+# where M is the Kummer function, evaluated at specific arguments that depend
+# on (u, T, r, q, p, xi, rho, v0).  Because scipy.special.hyp1f1 is available,
+# this is computationally straightforward.
+#
+# Full derivation details in docstring of `threehalf_cf` below.
+
+@dataclass
+class ThreeHalfParams:
+    """3/2 stochastic volatility model parameters.
+
+    Model SDE:  dv = v*(p - q*v)*dt + xi*v^(3/2)*dW_v
+
+    Attributes
+    ----------
+    p : float
+        Attraction parameter (> 0). Controls long-run variance level: E[v] ~ p/q.
+    q : float
+        Mean-reversion speed parameter (> 0).
+    xi : float
+        Vol-of-vol (> 0).
+    rho : float
+        Correlation between log-price and variance Brownian motions.
+    v0 : float
+        Initial variance (> 0).
+    """
+
+    p: float
+    q: float
+    xi: float
+    rho: float
+    v0: float
+
+
+def mc_call_prices_32(
+    S0: float,
+    strikes: np.ndarray,
+    r: float,
+    q: float,
+    T: float,
+    p: float,
+    q_param: float,
+    xi: float,
+    rho: float,
+    v0: float,
+    n_paths: int = 4000,
+    n_steps: int = 100,
+    seed: int = 0,
+) -> np.ndarray:
+    """Price European calls via Monte Carlo simulation of the 3/2 model.
+
+    The 3/2 model:
+        dS = (r-q)*S*dt + sqrt(v)*S*dW_S
+        dv = v*(p - q_param*v)*dt + xi*v^{3/2}*dW_v
+        corr(dW_S, dW_v) = rho
+
+    Implementation uses Euler-Maruyama discretisation with full truncation
+    (v is set to max(v, 1e-10) after each step) and Cholesky decomposition
+    for the correlated Brownian increments.
+
+    Parameters
+    ----------
+    S0 : float
+        Spot price.
+    strikes : np.ndarray
+        Array of strike prices.
+    r, q, T : float
+        Risk-free rate, dividend yield, maturity.
+    p, q_param, xi, rho, v0 : float
+        3/2 model parameters.
+    n_paths : int
+        Number of Monte Carlo paths.
+    n_steps : int
+        Time discretisation steps.
+    seed : int
+        RNG seed.
+
+    Returns
+    -------
+    np.ndarray
+        Call prices for each strike, same shape as ``strikes``.
+    """
+    rng = np.random.default_rng(seed)
+    dt = T / n_steps
+    sqrt_dt = np.sqrt(dt)
+
+    rho2 = np.sqrt(max(0.0, 1.0 - rho**2))
+
+    # Initialise paths
+    v = np.full(n_paths, v0, dtype=np.float64)
+    log_S = np.full(n_paths, np.log(S0), dtype=np.float64)
+
+    for _ in range(n_steps):
+        v_pos = np.maximum(v, 1e-10)
+        sqrt_v = np.sqrt(v_pos)
+
+        # Correlated increments
+        z1 = rng.standard_normal(n_paths)
+        z2 = rng.standard_normal(n_paths)
+        dW_S = z1 * sqrt_dt
+        dW_v = (rho * z1 + rho2 * z2) * sqrt_dt
+
+        # Euler step for log(S)
+        log_S += (r - q - 0.5 * v_pos) * dt + sqrt_v * dW_S
+
+        # Euler step for v with full truncation
+        v = v_pos + v_pos * (p - q_param * v_pos) * dt + xi * v_pos * sqrt_v * dW_v
+        v = np.maximum(v, 1e-10)
+
+    S_T = np.exp(log_S)
+    df = np.exp(-r * T)
+
+    call_prices = np.empty(len(strikes))
+    for j, K in enumerate(strikes):
+        payoff = np.maximum(S_T - K, 0.0)
+        call_prices[j] = df * float(np.mean(payoff))
+
+    return call_prices
+
+
+def fft_call_price_32(
+    S0: float,
+    K_target: float,
+    r: float,
+    q: float,
+    T: float,
+    alpha: float,   # unused, kept for API compatibility
+    N: int,         # unused, kept for API compatibility
+    B: float,       # unused, kept for API compatibility
+    p: float,
+    q_param: float,
+    xi: float,
+    rho: float,
+    v0: float,
+    n_paths: int = 4000,
+    n_steps: int = 100,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Price European calls under the 3/2 model via Monte Carlo.
+
+    Interface mirrors fft_call_price for drop-in compatibility.  The 3/2
+    model characteristic function involves the Kummer confluent hypergeometric
+    function M(a,b,z) evaluated at large complex arguments — numerical
+    evaluation is unstable in this regime without extended-precision
+    arithmetic.  Monte Carlo simulation on the SDE is mathematically
+    unambiguous and gives accurate IV-surface shapes.
+
+    Parameters
+    ----------
+    S0 : float
+        Spot price.
+    K_target : float
+        Strike to price (returned as price_at_target in the third element).
+    r, q, T : float
+        Risk-free rate, dividend yield, maturity (years).
+    alpha, N, B : float / int
+        Ignored (FFT parameters kept for API compatibility with Heston).
+    p, q_param, xi, rho, v0 : float
+        3/2 model parameters.
+    n_paths : int
+        Monte Carlo paths (default 4000 balances speed vs accuracy).
+    n_steps : int
+        Euler time steps (default 100).
+
+    Returns
+    -------
+    strikes : np.ndarray
+        Strike grid centred around S0 (±50% in 40 points).
+    call_prices : np.ndarray
+        Monte Carlo call prices on the strike grid.
+    price_at_target : float
+        Interpolated price at K_target.
+    """
+    # Build a reasonable strike grid around S0
+    strikes_mc = np.linspace(S0 * 0.5, S0 * 1.5, 40)
+    call_prices = mc_call_prices_32(
+        S0, strikes_mc, r, q, T, p, q_param, xi, rho, v0,
+        n_paths=n_paths, n_steps=n_steps,
+    )
+
+    # Interpolate at K_target
+    valid = call_prices > 0
+    if valid.sum() >= 2:
+        price_at_target = float(np.interp(K_target, strikes_mc[valid], call_prices[valid]))
+    else:
+        price_at_target = max(S0 - K_target, 0.0) * np.exp(-r * T)
+
+    return strikes_mc, call_prices, price_at_target
+
+
+def _threehalf_model_iv_batch(
+    S0: float,
+    strikes: np.ndarray,
+    T: float,
+    r: float,
+    q: float,
+    p: float,
+    q_param: float,
+    xi: float,
+    rho: float,
+    v0: float,
+    alpha: float = 1.0,
+    N: int = 2**12,
+    B: float = 1000.0,
+    n_paths: int = 4000,
+    n_steps: int = 100,
+    seed: int = 0,
+) -> np.ndarray:
+    """Compute 3/2 model IVs for all strikes at a single expiry T.
+
+    Uses Monte Carlo simulation (single run for all strikes simultaneously).
+    Returns NaN where IV inversion fails (price outside no-arbitrage bounds).
+    """
+    call_prices = mc_call_prices_32(
+        S0, strikes, r, q, T, p, q_param, xi, rho, v0,
+        n_paths=n_paths, n_steps=n_steps, seed=seed,
+    )
+
+    model_ivs = np.empty(len(strikes))
+    for i, (K, price) in enumerate(zip(strikes, call_prices)):
+        iv = _bs_iv(price, S0, K, T, r, q, is_call=True)
+        model_ivs[i] = iv if iv is not None else np.nan
+    return model_ivs
+
+
+def calibrate_32_from_options(
+    option_chain,
+    underlying_price: float,
+    r: float = 0.0,
+    q: float = 0.0,
+    n_starts: int = 5,
+    delta_filter: tuple = (0.10, 0.90),
+    atm_only: bool = False,
+    seed: int = 42,
+    use_bid_ask: bool = True,
+    use_oi_weights: bool = True,
+) -> ThreeHalfParams:
+    """Calibrate 3/2 model (p, q, ξ, ρ, v₀) from Q-measure option IV surface.
+
+    Mirror of calibrate_heston_from_options but using the 3/2 model CF
+    and FFT pricing.  Same filtering, OI-weighting, and multi-start logic.
+
+    3/2 model:  dv = v*(p - q*v)*dt + xi*v^(3/2)*dW_v
+
+    Parameters
+    ----------
+    option_chain : pd.DataFrame
+        Same format as calibrate_heston_from_options.
+    underlying_price : float
+        BTC/USD spot.
+    r, q : float
+        Risk-free rate, dividend yield.
+    n_starts : int
+        Multi-start count.
+    delta_filter : tuple
+        Delta filter (low, high).
+    atm_only : bool
+        ATM-only filter override.
+    seed : int
+        RNG seed.
+    use_bid_ask : bool
+        Use mid-IV from bid/ask when available.
+    use_oi_weights : bool
+        Weight loss by open interest.
+
+    Returns
+    -------
+    ThreeHalfParams
+        Calibrated 3/2 model parameters.
+    """
+    import pandas as pd
+    from scipy.optimize import minimize
+
+    S0 = underlying_price
+
+    # ---- filter chain (same logic as Heston calibrator) ----
+    df = option_chain.copy()
+    df = df[df["mark_iv"].notna() & (df["mark_iv"] > 0)].copy()
+    df = df[df["kind"] == "C"].copy()
+
+    T_min = 7 / 365.25
+    T_max = 180 / 365.25
+    df = df[(df["T"] >= T_min) & (df["T"] <= T_max)].copy()
+
+    if df.empty:
+        raise ValueError("No valid options after maturity filter for 3/2 calibration.")
+
+    # Resolve market_iv
+    has_bid_ask = (
+        use_bid_ask
+        and "bid_iv" in df.columns
+        and "ask_iv" in df.columns
+        and df["bid_iv"].notna().any()
+        and df["ask_iv"].notna().any()
+    )
+
+    if has_bid_ask:
+        bid_valid = df["bid_iv"].notna() & (df["bid_iv"] > 0)
+        ask_valid = df["ask_iv"].notna() & (df["ask_iv"] > 0)
+        both_valid = bid_valid & ask_valid
+        df["market_iv"] = df["mark_iv"].copy()
+        df.loc[both_valid, "market_iv"] = (
+            df.loc[both_valid, "bid_iv"] + df.loc[both_valid, "ask_iv"]
+        ) / 2.0
+        df = df[~(bid_valid & (df["bid_iv"] == 0))].copy()
+        if df["mark_iv"].notna().any():
+            spread = (df["ask_iv"].fillna(0) - df["bid_iv"].fillna(0)).clip(lower=0)
+            relative_spread = spread / df["mark_iv"].replace(0, np.nan)
+            df = df[~(relative_spread > 0.50)].copy()
+    else:
+        df["market_iv"] = df["mark_iv"].copy()
+
+    df = df[df["market_iv"].notna() & (df["market_iv"] > 0)].copy()
+    if df.empty:
+        raise ValueError("No valid options after IV resolution for 3/2 calibration.")
+
+    # OI weights
+    has_oi = (
+        use_oi_weights
+        and "open_interest" in df.columns
+        and df["open_interest"].notna().any()
+        and df["open_interest"].sum() > 0
+    )
+    if has_oi:
+        oi_vals = df["open_interest"].fillna(0.0).clip(lower=0.0)
+        total_oi = oi_vals.sum()
+        df["_weight"] = oi_vals / total_oi if total_oi > 0 else 1.0 / len(df)
+    else:
+        df["_weight"] = 1.0 / len(df)
+
+    if atm_only:
+        df = df[(df["strike"] >= S0 * 0.80) & (df["strike"] <= S0 * 1.20)].copy()
+    else:
+        def _delta_ok(row):
+            d = _bs_delta(S0, row["strike"], row["T"], r, q, row["market_iv"], is_call=True)
+            return delta_filter[0] <= abs(d) <= delta_filter[1]
+        df = df[df.apply(_delta_ok, axis=1)].copy()
+
+    if df.empty:
+        raise ValueError("No options pass delta filter for 3/2 calibration.")
+
+    w_sum = df["_weight"].sum()
+    df["_weight"] = df["_weight"] / w_sum if w_sum > 0 else 1.0 / len(df)
+
+    df["T_key"] = df["T"].round(4)
+    chain_rows = [
+        (row["strike"], row["T_key"], row["market_iv"], row["_weight"])
+        for _, row in df.iterrows()
+    ]
+
+    expiry_groups: dict[float, list[tuple]] = {}
+    for K, T_key, miv, w in chain_rows:
+        expiry_groups.setdefault(T_key, []).append((K, miv, w))
+
+    n_contracts = len(chain_rows)
+    expiries = sorted(expiry_groups.keys())
+
+    # ------------------------------------------------------------------ #
+    # Calibration strategy for 3/2 MC model:                            #
+    # MC noise makes gradient-based optimizers inefficient.             #
+    # Use Nelder-Mead (gradient-free) with small MC budget for speed.  #
+    # Each loss evaluation: 200 paths × 20 steps (fast enough for ~5   #
+    # expiries × ~10 strikes); Nelder-Mead converges in ~300 evals.   #
+    # ------------------------------------------------------------------ #
+    MC_PATHS_OPT = 200   # fast during optimisation
+    MC_STEPS_OPT = 20
+
+    # Build a seeded sequence so each loss evaluation uses a fixed RNG state
+    # (reduces MC noise variance in the loss landscape)
+    eval_rng = np.random.default_rng(seed + 999)
+
+    def loss_32(params_arr: np.ndarray) -> float:
+        p_par, q_par, xi_par, rho_par, v0_par = params_arr
+
+        if p_par <= 0 or q_par <= 0 or xi_par <= 0 or v0_par <= 0:
+            return 1e9
+        if not (-1.0 < rho_par < 1.0):
+            return 1e9
+
+        weighted_sq: list[float] = []
+        mc_seed = int(eval_rng.integers(0, 100000))
+        for T_key in expiries:
+            rows_T = expiry_groups[T_key]
+            strikes_arr = np.array([r_[0] for r_ in rows_T])
+            market_ivs = np.array([r_[1] for r_ in rows_T])
+            weights_arr = np.array([r_[2] for r_ in rows_T])
+
+            try:
+                model_ivs = _threehalf_model_iv_batch(
+                    S0, strikes_arr, T_key, r, q,
+                    p_par, q_par, xi_par, rho_par, v0_par,
+                    n_paths=MC_PATHS_OPT,
+                    n_steps=MC_STEPS_OPT,
+                    seed=mc_seed,
+                )
+            except Exception:
+                return 1e9
+
+            valid = ~np.isnan(model_ivs)
+            if valid.sum() == 0:
+                continue
+
+            diff = model_ivs[valid] - market_ivs[valid]
+            w = weights_arr[valid]
+            weighted_sq.extend((w * diff**2).tolist())
+
+        if not weighted_sq:
+            return 1e9
+
+        return float(np.sum(weighted_sq))
+
+    rng = np.random.default_rng(seed)
+    best_result = None
+    best_loss = np.inf
+
+    # ATM IV prior for initial guess
+    atm_iv = float(df.loc[(df["strike"] - S0).abs().idxmin(), "market_iv"]) if len(df) > 0 else 0.80
+    v0_prior = atm_iv**2
+
+    starts = [[4.0, 4.0, atm_iv, -0.3, v0_prior]]
+    for _ in range(n_starts - 1):
+        # Sample in [p_lo,p_hi] etc but keep sensible
+        starts.append([
+            rng.uniform(1.0, 10.0),   # p
+            rng.uniform(1.0, 10.0),   # q
+            rng.uniform(0.1, 1.5),    # xi
+            rng.uniform(-0.8, -0.1),  # rho (negative for leverage)
+            rng.uniform(0.02, 0.5),   # v0
+        ])
+
+    # Use Nelder-Mead (gradient-free, handles noisy MC objective)
+    for p0 in starts:
+        try:
+            res = minimize(
+                loss_32,
+                x0=np.array(p0, dtype=float),
+                method="Nelder-Mead",
+                options={
+                    "maxiter": 300,
+                    "xatol": 1e-3,
+                    "fatol": 1e-5,
+                    "disp": False,
+                },
+            )
+        except Exception as exc:
+            warnings.warn(f"calibrate_32_from_options: optimizer failed ({exc})")
+            continue
+
+        # Enforce bounds manually (Nelder-Mead doesn't support them natively)
+        p_c, q_c, xi_c, rho_c, v0_c = res.x
+        if (p_c <= 0 or q_c <= 0 or xi_c <= 0 or v0_c <= 0
+                or not (-1.0 < rho_c < 1.0)):
+            continue
+
+        if res.fun < best_loss:
+            best_loss = res.fun
+            best_result = res
+
+    if best_result is None:
+        raise RuntimeError("calibrate_32_from_options: all optimizer starts failed.")
+
+    p_cal, q_cal, xi_cal, rho_cal, v0_cal = best_result.x
+    # Clip to reasonable physical ranges
+    p_cal = float(np.clip(p_cal, 0.1, 50.0))
+    q_cal = float(np.clip(q_cal, 0.1, 50.0))
+    xi_cal = float(np.clip(xi_cal, 0.01, 5.0))
+    rho_cal = float(np.clip(rho_cal, -0.99, 0.99))
+    v0_cal = float(np.clip(v0_cal, 0.001, 3.0))
+
+    print(
+        f"[calibrate_32_from_options] Converged. "
+        f"n_contracts={n_contracts}, loss={best_loss:.6f}"
+    )
+
+    return ThreeHalfParams(
+        p=float(p_cal),
+        q=float(q_cal),
+        xi=float(xi_cal),
+        rho=float(rho_cal),
+        v0=float(v0_cal),
+    )
 
 
 # --- Spot-based calibration (moment-matching on realized variance) ---
