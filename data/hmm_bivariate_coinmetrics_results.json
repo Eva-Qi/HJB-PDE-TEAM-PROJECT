@@ -1,0 +1,55 @@
+{
+  "experiment": "bivariate_hmm_coinmetrics_flowin",
+  "date_range": "2026-01-01 to 2026-04-08",
+  "n_5min_bars": 28223,
+  "univariate": {
+    "label": "univariate (log_return only)",
+    "sigma_on": 0.6737435959488971,
+    "sigma_off": 2.3565913889458767,
+    "sigma_spread_pct": 249.77570148579522,
+    "prob_on": 0.8928887786557064,
+    "prob_off": 0.10711122134429366,
+    "state_vol_on": 0.0011205585896413026,
+    "state_vol_off": 0.0039194416674771995
+  },
+  "bivariate_raw_flowin": {
+    "label": "bivariate (log_return + FlowInExUSD)",
+    "sigma_on": 0.798386651177418,
+    "sigma_off": 1.1650354992310596,
+    "sigma_spread_pct": 45.923719730650234,
+    "prob_on": 0.4962973461361301,
+    "prob_off": 0.5037026538638699,
+    "state_vol_on": 0.0013278627436477597,
+    "state_vol_off": 0.0019376667084482794
+  },
+  "bivariate_log_flowin": {
+    "label": "bivariate (log_return + log FlowInExUSD)",
+    "sigma_on": 0.7318345809986652,
+    "sigma_off": 1.0847363963446046,
+    "sigma_spread_pct": 48.221527720699925,
+    "prob_on": 0.2755199659851894,
+    "prob_off": 0.7244800340148106,
+    "state_vol_on": 0.0012171745020887724,
+    "state_vol_off": 0.0018041146420228011
+  },
+  "spread_ratio_raw_vs_uni": 0.1838598368755334,
+  "spread_ratio_log_vs_uni": 0.1930593225596137,
+  "fg_reference": {
+    "univariate_spread_pct": 250.0,
+    "bivariate_fg_spread_pct": 45.0
+  },
+  "interpretation_raw": "FlowInExUSD (raw) DILUTES the regime signal same as F&G did (spread=45.9% vs univariate 249.8%, ratio=0.18x) \u2014 on-chain daily features don't align with 5-min vol regimes.",
+  "interpretation_log": "log(FlowInExUSD) DILUTES the regime signal same as F&G did (spread=48.2% vs univariate 249.8%, ratio=0.19x) \u2014 on-chain daily features don't align with 5-min vol regimes.",
+  "trivariate_logflowin_logflowout": {
+    "label": "3-feature (log_return + logFlowIn + logFlowOut)",
+    "sigma_on": 0.7373367258204312,
+    "sigma_off": 1.0874644366340342,
+    "sigma_spread_pct": 47.4854565834921,
+    "prob_on": 0.28572440916982605,
+    "prob_off": 0.714275590830174,
+    "state_vol_on": 0.0012263255733249998,
+    "state_vol_off": 0.001808651871018503
+  },
+  "spread_ratio_3d_vs_uni": 0.19011239404403235,
+  "interpretation_3d": "3-feature (logFlowIn + logFlowOut) DILUTES the regime signal same as F&G did (spread=47.5% vs univariate 249.8%, ratio=0.19x) \u2014 on-chain daily features don't align with 5-min vol regimes."
+}
