@@ -1,0 +1,137 @@
+{
+  "version": "v5",
+  "description": "Paired test V5: TRUE per-regime calibrated params vs Yuhao multipliers",
+  "n_paths": 10000,
+  "bootstrap_reps": 5000,
+  "lambda": 1e-06,
+  "base_params": {
+    "S0": 88839.04,
+    "sigma": 0.1314983377152761,
+    "gamma": 2.6723421626313173,
+    "eta": 2.7616375036136025e-05,
+    "alpha": 1.106389753710262
+  },
+  "stationary_probs": {
+    "risk_on": 0.9120929738156822,
+    "risk_off": 0.08790702618431775
+  },
+  "v4_yuhao_params": {
+    "risk_on": {
+      "sigma": 0.09252324634308559,
+      "gamma": 2.1333689585769844,
+      "eta": 1.5512120838517686e-05,
+      "alpha": 1.106389753710262
+    },
+    "risk_off": {
+      "sigma": 0.3285143783260406,
+      "gamma": 8.26454217019546,
+      "eta": 0.0002133671359281549,
+      "alpha": 1.106389753710262
+    }
+  },
+  "v5_true_params": {
+    "risk_on": {
+      "sigma": 0.38508974019331366,
+      "gamma": 1.5080652184542604,
+      "eta": 0.00014912430368163994,
+      "alpha": 0.41944702741887513,
+      "source": "calibrated (aggregated_1min)"
+    },
+    "risk_off": {
+      "sigma": 1.170695148414242,
+      "gamma": 1.453158566359022,
+      "eta": 0.001,
+      "alpha": 0.6,
+      "eta_source": "fallback",
+      "alpha_source": "fallback",
+      "caveats": [
+        "[impact 1min] alpha=0.261 r\u00b2=0.100 out of window for regime 1",
+        "[impact 5min] alpha=0.266 r\u00b2=0.098 out of window for regime 1",
+        "Regime 1: all impact methods failed \u2014 using literature fallback eta=1e-3 alpha=0.6"
+      ]
+    }
+  },
+  "v4_results": {
+    "mean_cost": {
+      "aware": 107.79439381887826,
+      "single": 104.05147939334617,
+      "diff": 3.7429144255320717,
+      "pct_diff": 3.597175597458561,
+      "p_value": 0.8344,
+      "significant": false
+    },
+    "objective": {
+      "aware": 244.64272382854685,
+      "single": 288.49358182605306,
+      "diff": -43.85085799750621,
+      "pct_diff": -15.199942307190058,
+      "p_value": 0.0228,
+      "significant": true
+    },
+    "var_95": {
+      "aware": 19098.556022609468,
+      "single": 22184.522334166297,
+      "diff": -3085.966311556829,
+      "pct_diff": -13.910447405956289,
+      "p_value": 0.0,
+      "significant": true
+    },
+    "cvar_95": {
+      "aware": 23715.360177298804,
+      "single": 27577.093664311655,
+      "diff": -3861.7334870128507,
+      "pct_diff": -14.003409982286987,
+      "p_value": 0.0,
+      "significant": true
+    }
+  },
+  "v5_results": {
+    "mean_cost": {
+      "aware": -21.438474107045902,
+      "single": 104.05147939334617,
+      "diff": -125.48995350039215,
+      "pct_diff": -120.60371869005537,
+      "p_value": 0.706,
+      "significant": false
+    },
+    "objective": {
+      "aware": 2185.067707545687,
+      "single": 288.49358182605306,
+      "diff": 1896.574125719634,
+      "pct_diff": 657.4060031821338,
+      "p_value": 0.0,
+      "significant": true
+    },
+    "var_95": {
+      "aware": 73974.23143380057,
+      "single": 22184.522334166297,
+      "diff": 51789.709099634274,
+      "pct_diff": 233.4497372516024,
+      "p_value": 0.0,
+      "significant": true
+    },
+    "cvar_95": {
+      "aware": 90319.23506629046,
+      "single": 27577.093664311655,
+      "diff": 62742.141401978806,
+      "pct_diff": 227.51542336448347,
+      "p_value": 0.0,
+      "significant": true
+    }
+  },
+  "interpretation": {
+    "v4_cvar_pct_diff": -14.003409982286987,
+    "v5_cvar_pct_diff": 227.51542336448347,
+    "v4_cvar_p": 0.0,
+    "v5_cvar_p": 0.0
+  },
+  "caveats": {
+    "risk_off_eta_alpha_source": "fallback",
+    "risk_off_warnings": [
+      "[impact 1min] alpha=0.261 r\u00b2=0.100 out of window for regime 1",
+      "[impact 5min] alpha=0.266 r\u00b2=0.098 out of window for regime 1",
+      "Regime 1: all impact methods failed \u2014 using literature fallback eta=1e-3 alpha=0.6"
+    ],
+    "note": "risk_off eta=1e-3, alpha=0.6 are literature fallback values. The impact regression failed for regime 1 (r\u00b2=0.10, alpha out-of-window). Sufficient risk_off trade data would be needed for true calibration."
+  }
+}
