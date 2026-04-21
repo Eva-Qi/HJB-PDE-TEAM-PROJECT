@@ -1,0 +1,701 @@
+{
+  "start": "2026-01-01",
+  "end": "2026-04-08",
+  "metrics_retrieved": [
+    "PriceUSD",
+    "FlowInExUSD",
+    "FlowOutExUSD",
+    "AdrActCnt"
+  ],
+  "metrics_failed": {
+    "TxTfrValAdjUSD": "403 Forbidden"
+  },
+  "data": [
+    {
+      "date": "2026-01-01",
+      "PriceUSD": 88684.2178474576,
+      "FlowInExUSD": 1373506479.4856467,
+      "FlowOutExUSD": 1466837197.3197365,
+      "AdrActCnt": 570904.0
+    },
+    {
+      "date": "2026-01-02",
+      "PriceUSD": 89940.1801671537,
+      "FlowInExUSD": 2004847354.9818542,
+      "FlowOutExUSD": 2240599044.59692,
+      "AdrActCnt": 702623.0
+    },
+    {
+      "date": "2026-01-03",
+      "PriceUSD": 90598.1301832262,
+      "FlowInExUSD": 838444438.3879192,
+      "FlowOutExUSD": 784231265.7971565,
+      "AdrActCnt": 618923.0
+    },
+    {
+      "date": "2026-01-04",
+      "PriceUSD": 91359.7636823495,
+      "FlowInExUSD": 885749358.5273166,
+      "FlowOutExUSD": 885571042.4428065,
+      "AdrActCnt": 629824.0
+    },
+    {
+      "date": "2026-01-05",
+      "PriceUSD": 93948.5821794272,
+      "FlowInExUSD": 2435847130.2367854,
+      "FlowOutExUSD": 2924822951.7143364,
+      "AdrActCnt": 687169.0
+    },
+    {
+      "date": "2026-01-06",
+      "PriceUSD": 93574.2871122151,
+      "FlowInExUSD": 2253757792.34496,
+      "FlowOutExUSD": 2266179703.157384,
+      "AdrActCnt": 698247.0
+    },
+    {
+      "date": "2026-01-07",
+      "PriceUSD": 91208.9562606663,
+      "FlowInExUSD": 2462718035.1964493,
+      "FlowOutExUSD": 2471508305.005204,
+      "AdrActCnt": 644966.0
+    },
+    {
+      "date": "2026-01-08",
+      "PriceUSD": 91096.9161554647,
+      "FlowInExUSD": 2207931125.461254,
+      "FlowOutExUSD": 2215127766.239922,
+      "AdrActCnt": 631893.0
+    },
+    {
+      "date": "2026-01-09",
+      "PriceUSD": 90539.6032288136,
+      "FlowInExUSD": 3195026825.4467187,
+      "FlowOutExUSD": 2914082055.819044,
+      "AdrActCnt": 664665.0
+    },
+    {
+      "date": "2026-01-10",
+      "PriceUSD": 90406.1424114553,
+      "FlowInExUSD": 2391198384.1268625,
+      "FlowOutExUSD": 2435617932.8819366,
+      "AdrActCnt": 608784.0
+    },
+    {
+      "date": "2026-01-11",
+      "PriceUSD": 90717.2063153127,
+      "FlowInExUSD": 2324034975.264027,
+      "FlowOutExUSD": 2183292846.867977,
+      "AdrActCnt": 536405.0
+    },
+    {
+      "date": "2026-01-12",
+      "PriceUSD": 91141.1498489188,
+      "FlowInExUSD": 2422054017.5887957,
+      "FlowOutExUSD": 2650985304.204985,
+      "AdrActCnt": 638422.0
+    },
+    {
+      "date": "2026-01-13",
+      "PriceUSD": 95304.4982942724,
+      "FlowInExUSD": 2737152766.162795,
+      "FlowOutExUSD": 3450264049.409927,
+      "AdrActCnt": 701272.0
+    },
+    {
+      "date": "2026-01-14",
+      "PriceUSD": 97043.9927258913,
+      "FlowInExUSD": 3170029371.1786404,
+      "FlowOutExUSD": 4228859940.797354,
+      "AdrActCnt": 707589.0
+    },
+    {
+      "date": "2026-01-15",
+      "PriceUSD": 95546.1397381648,
+      "FlowInExUSD": 2337331731.278116,
+      "FlowOutExUSD": 2512485235.2660184,
+      "AdrActCnt": 717904.0
+    },
+    {
+      "date": "2026-01-16",
+      "PriceUSD": 95489.1299602572,
+      "FlowInExUSD": 2229629384.3037195,
+      "FlowOutExUSD": 2069441263.2522943,
+      "AdrActCnt": 692686.0
+    },
+    {
+      "date": "2026-01-17",
+      "PriceUSD": 95106.980462595,
+      "FlowInExUSD": 864176681.1805468,
+      "FlowOutExUSD": 1029275808.1653581,
+      "AdrActCnt": 572689.0
+    },
+    {
+      "date": "2026-01-18",
+      "PriceUSD": 94261.3294313267,
+      "FlowInExUSD": 767751643.7382735,
+      "FlowOutExUSD": 745555808.8558866,
+      "AdrActCnt": 567075.0
+    },
+    {
+      "date": "2026-01-19",
+      "PriceUSD": 92526.2419643483,
+      "FlowInExUSD": 1399345862.5780833,
+      "FlowOutExUSD": 1287528627.868466,
+      "AdrActCnt": 623139.0
+    },
+    {
+      "date": "2026-01-20",
+      "PriceUSD": 88236.5631922852,
+      "FlowInExUSD": 2911289315.0406995,
+      "FlowOutExUSD": 2098132047.188531,
+      "AdrActCnt": 640908.0
+    },
+    {
+      "date": "2026-01-21",
+      "PriceUSD": 89599.361874927,
+      "FlowInExUSD": 2791828466.0177193,
+      "FlowOutExUSD": 1960941163.6439817,
+      "AdrActCnt": 698736.0
+    },
+    {
+      "date": "2026-01-22",
+      "PriceUSD": 89395.700735827,
+      "FlowInExUSD": 2372578952.2743587,
+      "FlowOutExUSD": 2197639713.2689915,
+      "AdrActCnt": 612517.0
+    },
+    {
+      "date": "2026-01-23",
+      "PriceUSD": 89439.7718909994,
+      "FlowInExUSD": 1853251746.7696502,
+      "FlowOutExUSD": 1958363919.258745,
+      "AdrActCnt": 664123.0
+    },
+    {
+      "date": "2026-01-24",
+      "PriceUSD": 89185.0386990064,
+      "FlowInExUSD": 766919324.4277138,
+      "FlowOutExUSD": 786022823.1927086,
+      "AdrActCnt": 562317.0
+    },
+    {
+      "date": "2026-01-25",
+      "PriceUSD": 86445.6705926359,
+      "FlowInExUSD": 1109347015.917745,
+      "FlowOutExUSD": 998228774.9196693,
+      "AdrActCnt": 555249.0
+    },
+    {
+      "date": "2026-01-26",
+      "PriceUSD": 88337.4545511397,
+      "FlowInExUSD": 1715960954.3169596,
+      "FlowOutExUSD": 1921966010.0494356,
+      "AdrActCnt": 635513.0
+    },
+    {
+      "date": "2026-01-27",
+      "PriceUSD": 89260.3805397429,
+      "FlowInExUSD": 2036506986.0128062,
+      "FlowOutExUSD": 1636883416.8571494,
+      "AdrActCnt": 624246.0
+    },
+    {
+      "date": "2026-01-28",
+      "PriceUSD": 89177.7892507306,
+      "FlowInExUSD": 2107654979.6890275,
+      "FlowOutExUSD": 2215876449.055628,
+      "AdrActCnt": 631786.0
+    },
+    {
+      "date": "2026-01-29",
+      "PriceUSD": 84520.3973106371,
+      "FlowInExUSD": 2510389922.6943865,
+      "FlowOutExUSD": 2274600723.231876,
+      "AdrActCnt": 681624.0
+    },
+    {
+      "date": "2026-01-30",
+      "PriceUSD": 84017.0340292227,
+      "FlowInExUSD": 3103527188.8904176,
+      "FlowOutExUSD": 2714493258.869259,
+      "AdrActCnt": 733411.0
+    },
+    {
+      "date": "2026-01-31",
+      "PriceUSD": 78702.38550263,
+      "FlowInExUSD": 3452837378.2729106,
+      "FlowOutExUSD": 2781019942.25006,
+      "AdrActCnt": 702918.0
+    },
+    {
+      "date": "2026-02-01",
+      "PriceUSD": 76911.0523772648,
+      "FlowInExUSD": 2391093696.8365226,
+      "FlowOutExUSD": 2219262863.7371674,
+      "AdrActCnt": 613261.0
+    },
+    {
+      "date": "2026-02-02",
+      "PriceUSD": 78716.6018088837,
+      "FlowInExUSD": 3027049413.1176944,
+      "FlowOutExUSD": 3189500339.5079,
+      "AdrActCnt": 734473.0
+    },
+    {
+      "date": "2026-02-03",
+      "PriceUSD": 75684.7660277616,
+      "FlowInExUSD": 3767165025.354831,
+      "FlowOutExUSD": 3697182625.671138,
+      "AdrActCnt": 741467.0
+    },
+    {
+      "date": "2026-02-04",
+      "PriceUSD": 73095.1914646406,
+      "FlowInExUSD": 4018617437.2884874,
+      "FlowOutExUSD": 3505364932.3994365,
+      "AdrActCnt": 704812.0
+    },
+    {
+      "date": "2026-02-05",
+      "PriceUSD": 63494.6884456458,
+      "FlowInExUSD": 5008829242.517374,
+      "FlowOutExUSD": 4571555022.3242655,
+      "AdrActCnt": 865167.0
+    },
+    {
+      "date": "2026-02-06",
+      "PriceUSD": 70647.6982188778,
+      "FlowInExUSD": 3862237271.550714,
+      "FlowOutExUSD": 4967485193.725697,
+      "AdrActCnt": 856992.0
+    },
+    {
+      "date": "2026-02-07",
+      "PriceUSD": 69166.2594424313,
+      "FlowInExUSD": 1558085382.2289784,
+      "FlowOutExUSD": 1565393154.6057355,
+      "AdrActCnt": 645574.0
+    },
+    {
+      "date": "2026-02-08",
+      "PriceUSD": 70522.5892393337,
+      "FlowInExUSD": 925408474.0688807,
+      "FlowOutExUSD": 1151899556.6803274,
+      "AdrActCnt": 555675.0
+    },
+    {
+      "date": "2026-02-09",
+      "PriceUSD": 70244.1017773232,
+      "FlowInExUSD": 2510041513.949706,
+      "FlowOutExUSD": 3271299758.5492015,
+      "AdrActCnt": 682068.0
+    },
+    {
+      "date": "2026-02-10",
+      "PriceUSD": 68688.793113384,
+      "FlowInExUSD": 1892654716.4001307,
+      "FlowOutExUSD": 2098802638.2363415,
+      "AdrActCnt": 624916.0
+    },
+    {
+      "date": "2026-02-11",
+      "PriceUSD": 66989.7165920514,
+      "FlowInExUSD": 2082698629.5332274,
+      "FlowOutExUSD": 1857367594.4516234,
+      "AdrActCnt": 659141.0
+    },
+    {
+      "date": "2026-02-12",
+      "PriceUSD": 66221.5443115137,
+      "FlowInExUSD": 2314112117.566657,
+      "FlowOutExUSD": 2240648393.5889845,
+      "AdrActCnt": 653355.0
+    },
+    {
+      "date": "2026-02-13",
+      "PriceUSD": 68860.8411633548,
+      "FlowInExUSD": 2198762418.5320067,
+      "FlowOutExUSD": 2315163799.106831,
+      "AdrActCnt": 684978.0
+    },
+    {
+      "date": "2026-02-14",
+      "PriceUSD": 69798.0791253653,
+      "FlowInExUSD": 1151188486.2641213,
+      "FlowOutExUSD": 784432219.0890968,
+      "AdrActCnt": 583422.0
+    },
+    {
+      "date": "2026-02-15",
+      "PriceUSD": 68629.9599760374,
+      "FlowInExUSD": 766449780.1580148,
+      "FlowOutExUSD": 907148467.3832713,
+      "AdrActCnt": 532309.0
+    },
+    {
+      "date": "2026-02-16",
+      "PriceUSD": 68747.4380286383,
+      "FlowInExUSD": 1099701337.2052622,
+      "FlowOutExUSD": 1124863443.6562784,
+      "AdrActCnt": 592609.0
+    },
+    {
+      "date": "2026-02-17",
+      "PriceUSD": 67471.0508465809,
+      "FlowInExUSD": 1578527729.2094388,
+      "FlowOutExUSD": 1316751888.4683132,
+      "AdrActCnt": 595445.0
+    },
+    {
+      "date": "2026-02-18",
+      "PriceUSD": 66380.7069611339,
+      "FlowInExUSD": 1195565031.0053563,
+      "FlowOutExUSD": 1715129667.6802833,
+      "AdrActCnt": 595919.0
+    },
+    {
+      "date": "2026-02-19",
+      "PriceUSD": 66932.3522118644,
+      "FlowInExUSD": 1460717723.6778202,
+      "FlowOutExUSD": 1268161314.6969604,
+      "AdrActCnt": 616639.0
+    },
+    {
+      "date": "2026-02-20",
+      "PriceUSD": 67977.3092612507,
+      "FlowInExUSD": 2456929265.932073,
+      "FlowOutExUSD": 2163408309.1186833,
+      "AdrActCnt": 662947.0
+    },
+    {
+      "date": "2026-02-21",
+      "PriceUSD": 68020.6677612507,
+      "FlowInExUSD": 584558822.0331796,
+      "FlowOutExUSD": 673408324.0900767,
+      "AdrActCnt": 579813.0
+    },
+    {
+      "date": "2026-02-22",
+      "PriceUSD": 67550.0240768556,
+      "FlowInExUSD": 647744559.0601497,
+      "FlowOutExUSD": 688266625.7210667,
+      "AdrActCnt": 525709.0
+    },
+    {
+      "date": "2026-02-23",
+      "PriceUSD": 64689.9123308007,
+      "FlowInExUSD": 1499713068.086111,
+      "FlowOutExUSD": 1447330710.4332898,
+      "AdrActCnt": 684644.0
+    },
+    {
+      "date": "2026-02-24",
+      "PriceUSD": 64123.7510780245,
+      "FlowInExUSD": 1844891093.114156,
+      "FlowOutExUSD": 1827095096.3352048,
+      "AdrActCnt": 661423.0
+    },
+    {
+      "date": "2026-02-25",
+      "PriceUSD": 68038.5221794272,
+      "FlowInExUSD": 1501620895.8283186,
+      "FlowOutExUSD": 1837924903.5486987,
+      "AdrActCnt": 650235.0
+    },
+    {
+      "date": "2026-02-26",
+      "PriceUSD": 67519.2645292227,
+      "FlowInExUSD": 1704671733.7656896,
+      "FlowOutExUSD": 2002486014.9306748,
+      "AdrActCnt": 693519.0
+    },
+    {
+      "date": "2026-02-27",
+      "PriceUSD": 65864.1358170661,
+      "FlowInExUSD": 1429070907.0819538,
+      "FlowOutExUSD": 1312714905.4538016,
+      "AdrActCnt": 704075.0
+    },
+    {
+      "date": "2026-02-28",
+      "PriceUSD": 66965.6353091759,
+      "FlowInExUSD": 755686759.2086804,
+      "FlowOutExUSD": 820431674.0888083,
+      "AdrActCnt": 640533.0
+    },
+    {
+      "date": "2026-03-01",
+      "PriceUSD": 65733.5212597896,
+      "FlowInExUSD": 761454816.4942904,
+      "FlowOutExUSD": 792817595.5480251,
+      "AdrActCnt": 602506.0
+    },
+    {
+      "date": "2026-03-02",
+      "PriceUSD": 68922.6242974869,
+      "FlowInExUSD": 1700399005.2023537,
+      "FlowOutExUSD": 2044673399.073822,
+      "AdrActCnt": 690831.0
+    },
+    {
+      "date": "2026-03-03",
+      "PriceUSD": 68431.1740306838,
+      "FlowInExUSD": 1909043890.8424327,
+      "FlowOutExUSD": 2097149426.3210664,
+      "AdrActCnt": 652464.0
+    },
+    {
+      "date": "2026-03-04",
+      "PriceUSD": 72667.4630575687,
+      "FlowInExUSD": 2344365582.6219964,
+      "FlowOutExUSD": 4673661420.997476,
+      "AdrActCnt": 697294.0
+    },
+    {
+      "date": "2026-03-05",
+      "PriceUSD": 70987.427176505,
+      "FlowInExUSD": 2077883528.5602832,
+      "FlowOutExUSD": 2371331278.6017146,
+      "AdrActCnt": 686708.0
+    },
+    {
+      "date": "2026-03-06",
+      "PriceUSD": 68226.7053927528,
+      "FlowInExUSD": 1606037540.7842593,
+      "FlowOutExUSD": 1697378436.2440515,
+      "AdrActCnt": 672019.0
+    },
+    {
+      "date": "2026-03-07",
+      "PriceUSD": 67315.5529135009,
+      "FlowInExUSD": 1040132519.3130964,
+      "FlowOutExUSD": 1032296658.971105,
+      "AdrActCnt": 592224.0
+    },
+    {
+      "date": "2026-03-08",
+      "PriceUSD": 66202.6978731736,
+      "FlowInExUSD": 528848491.2266693,
+      "FlowOutExUSD": 454682052.4951303,
+      "AdrActCnt": 523172.0
+    },
+    {
+      "date": "2026-03-09",
+      "PriceUSD": 68528.5384699007,
+      "FlowInExUSD": 1755987260.3788798,
+      "FlowOutExUSD": 1855174610.4501085,
+      "AdrActCnt": 627803.0
+    },
+    {
+      "date": "2026-03-10",
+      "PriceUSD": 69891.8238576856,
+      "FlowInExUSD": 1991313805.0703013,
+      "FlowOutExUSD": 2298365436.391938,
+      "AdrActCnt": 649875.0
+    },
+    {
+      "date": "2026-03-11",
+      "PriceUSD": 70298.5753530099,
+      "FlowInExUSD": 1826348012.9782672,
+      "FlowOutExUSD": 2290621541.817618,
+      "AdrActCnt": 629140.0
+    },
+    {
+      "date": "2026-03-12",
+      "PriceUSD": 70538.1074623027,
+      "FlowInExUSD": 1309259432.1500509,
+      "FlowOutExUSD": 1851034093.993861,
+      "AdrActCnt": 640192.0
+    },
+    {
+      "date": "2026-03-13",
+      "PriceUSD": 70930.0132793688,
+      "FlowInExUSD": 1768356550.035369,
+      "FlowOutExUSD": 1815392943.1133,
+      "AdrActCnt": 676568.0
+    },
+    {
+      "date": "2026-03-14",
+      "PriceUSD": 71136.2179199299,
+      "FlowInExUSD": 580520737.4107158,
+      "FlowOutExUSD": 436678247.858674,
+      "AdrActCnt": 557544.0
+    },
+    {
+      "date": "2026-03-15",
+      "PriceUSD": 72712.1461957919,
+      "FlowInExUSD": 704659119.6717293,
+      "FlowOutExUSD": 900897923.2805712,
+      "AdrActCnt": 534462.0
+    },
+    {
+      "date": "2026-03-16",
+      "PriceUSD": 74723.9575534775,
+      "FlowInExUSD": 2313675354.5828667,
+      "FlowOutExUSD": 2097903153.8530998,
+      "AdrActCnt": 701802.0
+    },
+    {
+      "date": "2026-03-17",
+      "PriceUSD": 74086.013609585,
+      "FlowInExUSD": 1580672274.2547867,
+      "FlowOutExUSD": 1585590352.4456632,
+      "AdrActCnt": 679525.0
+    },
+    {
+      "date": "2026-03-18",
+      "PriceUSD": 71253.9579275278,
+      "FlowInExUSD": 1767159591.5471776,
+      "FlowOutExUSD": 2006428827.9019132,
+      "AdrActCnt": 625137.0
+    },
+    {
+      "date": "2026-03-19",
+      "PriceUSD": 69948.9048267095,
+      "FlowInExUSD": 1349281996.448448,
+      "FlowOutExUSD": 1477643312.4616747,
+      "AdrActCnt": 603884.0
+    },
+    {
+      "date": "2026-03-20",
+      "PriceUSD": 70510.4196797194,
+      "FlowInExUSD": 1425433279.3626218,
+      "FlowOutExUSD": 1455357419.3350215,
+      "AdrActCnt": 656663.0
+    },
+    {
+      "date": "2026-03-21",
+      "PriceUSD": 69707.285009059,
+      "FlowInExUSD": 477005073.42503893,
+      "FlowOutExUSD": 455068149.4739617,
+      "AdrActCnt": 586709.0
+    },
+    {
+      "date": "2026-03-22",
+      "PriceUSD": 68018.1534815897,
+      "FlowInExUSD": 654281750.9501797,
+      "FlowOutExUSD": 1285813601.138944,
+      "AdrActCnt": 545348.0
+    },
+    {
+      "date": "2026-03-23",
+      "PriceUSD": 70726.2110461718,
+      "FlowInExUSD": 1442716123.4902816,
+      "FlowOutExUSD": 1202736946.747267,
+      "AdrActCnt": 640101.0
+    },
+    {
+      "date": "2026-03-24",
+      "PriceUSD": 70610.0187121566,
+      "FlowInExUSD": 1546324882.3316898,
+      "FlowOutExUSD": 1394595925.1784043,
+      "AdrActCnt": 587472.0
+    },
+    {
+      "date": "2026-03-25",
+      "PriceUSD": 71281.2973921683,
+      "FlowInExUSD": 1866488589.0619228,
+      "FlowOutExUSD": 2443561262.1247787,
+      "AdrActCnt": 657017.0
+    },
+    {
+      "date": "2026-03-26",
+      "PriceUSD": 68722.9718366452,
+      "FlowInExUSD": 1517990767.874167,
+      "FlowOutExUSD": 1297022957.1255145,
+      "AdrActCnt": 623105.0
+    },
+    {
+      "date": "2026-03-27",
+      "PriceUSD": 66214.1715134424,
+      "FlowInExUSD": 1920834945.889596,
+      "FlowOutExUSD": 1859765102.889186,
+      "AdrActCnt": 640242.0
+    },
+    {
+      "date": "2026-03-28",
+      "PriceUSD": 66351.0725251315,
+      "FlowInExUSD": 687216015.725493,
+      "FlowOutExUSD": 637519421.7934268,
+      "AdrActCnt": 555352.0
+    },
+    {
+      "date": "2026-03-29",
+      "PriceUSD": 65966.7523939217,
+      "FlowInExUSD": 826704533.598187,
+      "FlowOutExUSD": 943258282.3821977,
+      "AdrActCnt": 513446.0
+    },
+    {
+      "date": "2026-03-30",
+      "PriceUSD": 66651.2320037989,
+      "FlowInExUSD": 2280248147.358538,
+      "FlowOutExUSD": 2035883009.4500425,
+      "AdrActCnt": 631420.0
+    },
+    {
+      "date": "2026-03-31",
+      "PriceUSD": 68214.8680388662,
+      "FlowInExUSD": 1886685974.2938864,
+      "FlowOutExUSD": 2010517033.0577624,
+      "AdrActCnt": 630351.0
+    },
+    {
+      "date": "2026-04-01",
+      "PriceUSD": 68116.8167933957,
+      "FlowInExUSD": 1648757082.6554818,
+      "FlowOutExUSD": 2036072108.5606585,
+      "AdrActCnt": 697142.0
+    },
+    {
+      "date": "2026-04-02",
+      "PriceUSD": 66908.3179918177,
+      "FlowInExUSD": 1665130283.7254364,
+      "FlowOutExUSD": 1699399249.1193256,
+      "AdrActCnt": 653581.0
+    },
+    {
+      "date": "2026-04-03",
+      "PriceUSD": 66891.7422279369,
+      "FlowInExUSD": 936864263.87064,
+      "FlowOutExUSD": 977820981.4677787,
+      "AdrActCnt": 647348.0
+    },
+    {
+      "date": "2026-04-04",
+      "PriceUSD": 67295.1309137931,
+      "FlowInExUSD": 448263743.79352224,
+      "FlowOutExUSD": 510489230.93533045,
+      "AdrActCnt": 546885.0
+    },
+    {
+      "date": "2026-04-05",
+      "PriceUSD": 68921.8060911748,
+      "FlowInExUSD": 515545123.05612046,
+      "FlowOutExUSD": 511366770.34444463,
+      "AdrActCnt": 496633.0
+    },
+    {
+      "date": "2026-04-06",
+      "PriceUSD": 68742.9133085915,
+      "FlowInExUSD": 1228754813.6451309,
+      "FlowOutExUSD": 1273238150.1373303,
+      "AdrActCnt": 608673.0
+    },
+    {
+      "date": "2026-04-07",
+      "PriceUSD": 72057.1243614845,
+      "FlowInExUSD": 1884331897.6946688,
+      "FlowOutExUSD": 1765029746.4162686,
+      "AdrActCnt": 640745.0
+    },
+    {
+      "date": "2026-04-08",
+      "PriceUSD": 71085.0583702513,
+      "FlowInExUSD": 1547538602.9888258,
+      "FlowOutExUSD": 1762887207.7018805,
+      "AdrActCnt": 632101.0
+    }
+  ]
+}
