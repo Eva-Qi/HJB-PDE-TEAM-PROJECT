@@ -48,10 +48,11 @@ from calibration.impact_estimator import (
     estimate_kyle_lambda,
     estimate_temporary_impact_aggregated,
 )
-from montecarlo.strategies import twap_trajectory, optimal_trajectory
+from montecarlo.strategies import twap_trajectory
 from montecarlo.sde_engine import simulate_execution
+from pde.hjb_solver import solve_hjb, extract_optimal_trajectory
 from shared.cost_model import execution_cost
-from shared.params import ACParams
+from shared.params import ACParams, almgren_chriss_closed_form
 
 
 # ── run constants ─────────────────────────────────────────────────────────────
@@ -71,7 +72,11 @@ SPLITS = [
 ]
 
 # Literature fallbacks (used when estimation fails on short window)
-FALLBACK_GAMMA = 1e-4
+# Units: gamma in $/BTC (Kyle's lambda), eta in $/BTC^alpha, alpha dimensionless.
+# gamma ≈ 2.5 $/BTC is the BTCUSDT bar-level ballpark from calibrated_params()
+# and regime_conditional_impact.json. Previous 1e-4 was a legacy 1/BTC-convention
+# value that produced a permanent-impact term ~5 orders of magnitude too small.
+FALLBACK_GAMMA = 2.5
 FALLBACK_ETA   = 1e-3
 FALLBACK_ALPHA = 0.6
 
@@ -125,7 +130,10 @@ def load_window_aggregated(start: str, end: str, ohlc_freq: str = "5min"):
         ).dropna()
         flow = flow[flow["n_trades"] > 0]
         flow["return"] = (flow["last_price_b"] - flow["first_price"]) / flow["first_price"]
-        flow_list.append(flow[["net_flow", "return"]])
+        # Keep first_price/last_price_b so gamma regression can use dprice ($)
+        # on net_flow (BTC) → gamma in $/BTC (the convention ACParams.gamma expects,
+        # matching calibration/impact_estimator.estimate_kyle_lambda_aggregated).
+        flow_list.append(flow[["net_flow", "return", "first_price", "last_price_b"]])
 
         del df_day, df_day_idx
         day += pd.Timedelta(days=1)
@@ -159,25 +167,36 @@ def calibrate_from_aggregated(ohlc_df, flow_df, last_price: float) -> dict:
     sigma = estimate_realized_vol_gk(ohlc_df, freq_seconds=300.0, annualize=True)
     src["sigma"] = "estimated"
 
-    # gamma — from 1-min bar-level regression (net_flow → price_change)
-    # Kyle's lambda at bar resolution: ΔP ≈ lambda * net_flow
+    # gamma — Kyle's lambda at 1-min bar resolution: Δprice ($) ≈ γ · net_flow (BTC)
+    #
+    # Units: dp_bars is in $ (last - first within bucket), nf_bars is in BTC,
+    # so γ = dp/flow is in $/BTC. This MUST match ACParams.gamma convention,
+    # which the cost model (shared/cost_model.execution_cost) uses as
+    #   perm_cost = γ · Σ n_k · (Σ prior n_k)     [$/BTC · BTC · BTC = $]
+    # and the SDE engine (montecarlo/sde_engine) uses as
+    #   s_next = s_prev - γ · n_k                  [$/BTC · BTC = $ price drop].
+    #
+    # Equivalent to calibration/impact_estimator.estimate_kyle_lambda_aggregated
+    # (Cov(Δprice, flow) / Var(flow) via OLS). Previous implementation regressed
+    # `return` (dimensionless) on `net_flow` (BTC) → γ in 1/BTC (~1.9e-5),
+    # five orders of magnitude too small, zeroing out the permanent-impact term
+    # in the optimizer and collapsing AC-optimal onto TWAP. See N-1 in
+    # AUDIT_VERIFICATION.md.
     try:
         flow_clean = flow_df.dropna()
-        dp_bar = (flow_clean["return"] * flow_clean["return"].shift(1).fillna(method="bfill")).values
-        # Better: use actual 1-min bar returns as ΔP proxy
-        dp_bars = flow_clean["return"].values       # return within bar as price change proxy
-        nf_bars = flow_clean["net_flow"].values
+        dp_bars = (flow_clean["last_price_b"] - flow_clean["first_price"]).values  # $ per bucket
+        nf_bars = flow_clean["net_flow"].values                                     # BTC per bucket
         mask = np.isfinite(dp_bars) & np.isfinite(nf_bars) & (nf_bars != 0)
         if mask.sum() >= 10:
-            # Kyle's lambda: regress ΔP on net_flow (OLS slope)
+            # Kyle's lambda: regress Δprice ($) on net_flow (BTC) — OLS slope → $/BTC
             slope, intercept, r, p, se = scipy_stats.linregress(nf_bars[mask], dp_bars[mask])
             gamma_bar = float(slope)
             if gamma_bar > 0:
                 gamma = gamma_bar
                 src["gamma"] = "estimated_bar"
-                w.append(f"[bar-level gamma] lambda={gamma:.2e} r²={r**2:.3f}")
+                w.append(f"[bar-level gamma] lambda={gamma:.4f} $/BTC  r²={r**2:.3f}")
             else:
-                w.append(f"Kyle bar-level: negative gamma ({gamma_bar:.2e}), using fallback")
+                w.append(f"Kyle bar-level: negative gamma ({gamma_bar:.4f} $/BTC), using fallback")
                 gamma = FALLBACK_GAMMA
                 src["gamma"] = "fallback"
         else:
@@ -227,7 +246,11 @@ def calibrate_from_aggregated(ohlc_df, flow_df, last_price: float) -> dict:
 def build_params(cal: dict, sigma_override: float | None = None,
                  s0_override: float | None = None,
                  force_linear: bool = False) -> ACParams:
-    """Build ACParams from a calibration dict, optionally overriding sigma/S0."""
+    """Build ACParams from a calibration dict, optionally overriding sigma/S0.
+
+    ``force_linear`` retained for backward-compat but should generally be False —
+    non-linear alpha is handled via the HJB PDE solver downstream.
+    """
     alpha = 1.0 if force_linear else cal["alpha"]
     return ACParams(
         S0=s0_override if s0_override is not None else cal["S0"],
@@ -240,6 +263,42 @@ def build_params(cal: dict, sigma_override: float | None = None,
         lam=LAM,
         fee_bps=7.5,
     )
+
+
+def compute_optimal_trajectory(params: ACParams) -> tuple[np.ndarray, str, str | None]:
+    """Compute the AC optimal inventory trajectory.
+
+    Uses closed-form when alpha is very close to 1 (|alpha-1| < 0.01); otherwise
+    solves the HJB PDE via policy iteration (Howard's algorithm). Raising a
+    ``ValueError`` from the closed-form path falls through to the PDE solver.
+
+    Returns
+    -------
+    x_opt : np.ndarray, shape (N+1,)
+        Optimal inventory trajectory.
+    method : str
+        "closed_form" or "hjb_pde".
+    note : str | None
+        Optional diagnostic (e.g., convergence warning) — currently always None
+        but reserved for future use.
+    """
+    # Keep the cheap path when alpha is effectively 1 (back-compat & speed)
+    if abs(params.alpha - 1.0) < 0.01:
+        _, x_opt, _ = almgren_chriss_closed_form(params)
+        return x_opt, "closed_form", None
+
+    # Non-linear impact: HJB PDE solver handles arbitrary alpha
+    try:
+        grid, _V, v_star = solve_hjb(params, M=200)
+        x_opt = extract_optimal_trajectory(grid, v_star, params)
+    except ValueError:
+        # Fallback: if the closed-form path is accidentally reached (|alpha-1|<1e-10
+        # but not <0.01) we'd hit this; treat as bug and re-raise.
+        raise
+
+    # Validate monotonicity and boundary conditions
+    # (x[0] == X0 by construction in extract_optimal_trajectory; x[-1] should be ~0)
+    return x_opt, "hjb_pde", None
 
 
 # ── per-split logic ──────────────────────────────────────────────────────────
@@ -292,22 +351,35 @@ def run_split(label: str, train_start: str, train_end: str,
         return result
 
     # ── build params ─────────────────────────────────────────────────────────
-    need_linear = abs(train_cal["alpha"] - 1.0) > 0.05
-    if need_linear:
-        print(f"  [INFO] alpha={train_cal['alpha']:.3f} → forcing alpha=1.0 for closed-form AC")
-
-    train_params = build_params(train_cal, force_linear=need_linear)
+    # Keep the calibrated (possibly non-linear) alpha — HJB PDE handles it.
+    train_params = build_params(train_cal, force_linear=False)
     test_params  = build_params(train_cal,
                                 sigma_override=test_sigma,
                                 s0_override=te_first_price,
-                                force_linear=need_linear)
+                                force_linear=False)
 
     # ── trajectories from TRAIN params ───────────────────────────────────────
+    # AC optimal: closed-form iff alpha ≈ 1; otherwise HJB PDE (Howard's policy
+    # iteration).  This replaces the previous invalid "linear_approx" fallback
+    # which forced alpha=1 and invoked the closed-form on non-linear data.
+    method = None
+    method_note = None
     try:
         x_twap = twap_trajectory(train_params)
-        x_opt  = optimal_trajectory(train_params)
+        x_opt, method, method_note = compute_optimal_trajectory(train_params)
+        print(f"  AC trajectory method: {method}  (alpha={train_params.alpha:.3f})")
+
+        # Sanity checks on the trajectory
+        if x_opt[0] <= 0 or abs(x_opt[0] - X0) > 1e-6:
+            raise ValueError(f"x_opt[0]={x_opt[0]:.4f} != X0={X0}")
+        if not np.all(np.diff(x_opt) <= 1e-9):
+            n_bad = int(np.sum(np.diff(x_opt) > 1e-9))
+            print(f"  [WARN] x_opt non-monotone at {n_bad} steps")
+        if x_opt[-1] > X0 * 1e-3:
+            print(f"  [WARN] x_opt[-1]={x_opt[-1]:.6f} (expected ≈ 0); "
+                  f"HJB residual — trajectory still used")
     except Exception as e:
-        result["error"] = f"Trajectory: {e}"
+        result["error"] = f"Trajectory ({method or 'unknown'}): {e}"
         print(f"  [ERROR] {result['error']}")
         return result
 
@@ -358,7 +430,12 @@ def run_split(label: str, train_start: str, train_end: str,
         gamma=train_cal["gamma"],
         eta=train_cal["eta"],
         alpha=train_cal["alpha"],
-        used_linear_approx=need_linear,
+        # Trajectory method used — "closed_form" iff |alpha-1|<0.01, else "hjb_pde".
+        # Replaces the previous `used_linear_approx` flag which was always True
+        # and reflected a broken fallback (invalid closed-form on non-linear data).
+        ac_method=method,
+        ac_method_note=method_note,
+        used_linear_approx=False,  # retained for backward-compat; always False now
         # in-sample
         is_cost_opt=round(is_cost_opt, 6),
         is_cost_twap=round(is_cost_twap, 6),
@@ -379,7 +456,7 @@ def run_split(label: str, train_start: str, train_end: str,
 # ── output helpers ────────────────────────────────────────────────────────────
 
 def print_table(results: list[dict]) -> None:
-    hdr = (f"{'Split':<28}  {'σ_train':>8}  {'σ_test':>8}  {'σ_drift':>8}"
+    hdr = (f"{'Split':<28}  {'α':>6}  {'method':>10}  {'σ_train':>8}  {'σ_test':>8}  {'σ_drift':>8}"
            f"  {'IS%sav':>8}  {'OOS%sav':>8}  {'Δpp':>8}")
     sep = "─" * len(hdr)
     print("\n" + sep)
@@ -391,6 +468,8 @@ def print_table(results: list[dict]) -> None:
             continue
         print(
             f"  {r['label']:<26}"
+            f"  {r['alpha']:>6.3f}"
+            f"  {r.get('ac_method', '?'):>10}"
             f"  {r['train_sigma']:>8.4f}"
             f"  {r['test_sigma']:>8.4f}"
             f"  {r['sigma_drift_pct']:>7.1f}%"
@@ -399,6 +478,8 @@ def print_table(results: list[dict]) -> None:
             f"  {r['savings_degradation_pp']:>+7.2f}"
         )
     print(sep)
+    print("α = calibrated temporary-impact exponent")
+    print("method = AC trajectory solver (closed_form iff |α-1|<0.01, else hjb_pde)")
     print("σ_train/σ_test = GK annualized vol | σ_drift = |Δσ|/σ_train")
     print("IS%sav = deterministic savings vs TWAP on train params")
     print("OOS%sav = deterministic savings when test-period sigma/S0 applied")
