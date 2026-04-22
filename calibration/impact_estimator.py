@@ -474,12 +474,19 @@ class CalibrationResult:
         Any warnings generated during calibration.
     sigma_rs : float | None
         Rogers-Satchell vol estimate for robustness comparison.
+    n_trades : int | None
+        Number of trades used for this calibration (per-regime sub-sample
+        size, or None for pooled calibration).  Populated by
+        ``calibrated_params_per_regime`` so downstream consumers can tell
+        whether the result is data-driven or fell back to literature
+        constants because the sub-sample was too small.
     """
 
     params: ACParams
     sources: dict  # e.g. {"sigma": "estimated", "gamma": "estimated", "eta": "fallback", "alpha": "fallback"}
     warnings: list
     sigma_rs: float | None = None
+    n_trades: int | None = None
 
 
 def calibrated_params_per_regime(
@@ -490,14 +497,29 @@ def calibrated_params_per_regime(
     T: float = 1.0 / (365.25 * 24),
     N: int = 50,
     lam: float = 1e-6,
+    _min_trades_per_regime: int = 1000,
 ) -> "dict[int, CalibrationResult]":
     """Calibrate impact parameters independently for each HMM regime.
 
     This replaces Yuhao's sigma-multiplier scaling with true regime-
     conditional impact calibration.  The HMM state_sequence is indexed
     to 5-min return bars; trades are tick-level.  For each trade we look
-    up which 5-min bar it falls into (merge_asof on timestamp) and assign
-    that bar's regime label.
+    up which 5-min bar it falls into and assign that bar's regime label.
+
+    Alignment strategy (CRITICAL-1 fix, 2026-04-21):
+        Previously this used ``pd.merge_asof`` with tz-aware timestamps
+        on both sides.  The DATA_INTEGRITY_AUDIT.md flagged this as
+        silently failing because the caller was stripping tz via
+        ``pd.DatetimeIndex(series.values)``.  In practice merge_asof
+        works once both sides are re-localized inside this function,
+        but we now prefer a simpler direct ``np.searchsorted`` lookup:
+        each trade is assigned the regime of the most recent bar whose
+        start ≤ trade_timestamp.  This is more robust (no tz silent
+        coercion, no sort re-key cost) and exposes a true ``n_trades``
+        count per regime.  A hard-fail assertion fires if any regime
+        receives < ``min_trades_per_regime`` trades (default 1000) so
+        downstream consumers cannot silently read fallback constants
+        for a sub-sample that was never actually calibrated.
 
     Parameters
     ----------
@@ -513,16 +535,22 @@ def calibrated_params_per_regime(
         mid-price DataFrame after dropna().
     X0, T, N, lam : float / int
         Passed through to calibrated_params for each sub-sample.
+    min_trades_per_regime : int
+        Hard floor for per-regime trade count.  If any regime has fewer
+        than this many trades, a ValueError is raised rather than
+        silently falling back.  Defaults to 1000, which is comfortably
+        above the ~200 floor used inside the sub-sample calibrator.
 
     Returns
     -------
     dict[int, CalibrationResult]
         Keys are unique regime labels from state_sequence.
-        Values are CalibrationResult objects (or a CalibrationResult
-        whose ``warnings`` list documents why calibration failed for
-        that regime if there was insufficient data).
+        Values are CalibrationResult objects; ``n_trades`` records the
+        true sub-sample size used for that regime's calibration.
     """
     import pandas as pd
+
+    min_trades_per_regime = int(_min_trades_per_regime)
 
     state_sequence = np.asarray(state_sequence, dtype=int)
     bar_ts = pd.DatetimeIndex(bar_timestamps)
@@ -537,13 +565,13 @@ def calibrated_params_per_regime(
             f"state_sequence length ({len(state_sequence)})."
         )
 
-    # Build a lookup DataFrame: for each bar start timestamp → regime label
-    bar_label_df = pd.DataFrame(
-        {"bar_ts": bar_ts, "regime": state_sequence}
-    ).sort_values("bar_ts").reset_index(drop=True)
+    # Sort bars (they should already be sorted, but be defensive).
+    bar_order = np.argsort(bar_ts.view("int64"))
+    bar_ts_sorted = bar_ts[bar_order]
+    state_sorted = state_sequence[bar_order]
 
-    # Assign each trade to its bar via merge_asof (forward-fill: each trade
-    # belongs to the most recent bar that started at or before its timestamp)
+    # Normalize trade timestamps to UTC (handle both tz-aware and tz-naive
+    # inputs so the function tolerates callers that strip tz via .values).
     trades_sorted = trades_df.sort_values("timestamp").reset_index(drop=True)
     trade_ts = trades_sorted["timestamp"].copy()
     if trade_ts.dt.tz is None:
@@ -553,19 +581,46 @@ def calibrated_params_per_regime(
     trades_sorted = trades_sorted.copy()
     trades_sorted["timestamp"] = trade_ts
 
-    merged = pd.merge_asof(
-        trades_sorted,
-        bar_label_df.rename(columns={"bar_ts": "timestamp"}),
-        on="timestamp",
-        direction="backward",
-    )
+    # Direct bar assignment via searchsorted on int64 nanoseconds — no
+    # merge_asof, no tz surprises.  For each trade, find the largest bar
+    # index whose timestamp is ≤ the trade's timestamp.
+    bar_ns = bar_ts_sorted.view("int64")
+    trade_ns = trade_ts.to_numpy().astype("datetime64[ns]").view("int64")
+    # side="right" gives position ABOVE the match; subtract 1 for the last
+    # bar_ts ≤ trade_ts.  Trades before bar 0 get idx = -1 → drop later.
+    bar_idx = np.searchsorted(bar_ns, trade_ns, side="right") - 1
 
-    # Trades before the first bar have no regime — drop them
-    merged = merged.dropna(subset=["regime"])
-    merged["regime"] = merged["regime"].astype(int)
+    # Drop trades that landed before the first bar (no regime defined).
+    valid_mask = bar_idx >= 0
+    if not valid_mask.all():
+        n_dropped = int((~valid_mask).sum())
+        # Emit a single informational note (caller's script can inspect it
+        # by reading the first regime's warnings list below).
+        pre_first_bar_dropped = n_dropped
+    else:
+        pre_first_bar_dropped = 0
+
+    trades_valid = trades_sorted.loc[valid_mask].copy()
+    trades_valid["regime"] = state_sorted[bar_idx[valid_mask]].astype(int)
+    merged = trades_valid
 
     results: dict[int, CalibrationResult] = {}
     unique_regimes = sorted(merged["regime"].unique().tolist())
+
+    # Hard-fail guard: refuse to silently return fallback constants for
+    # a regime that never had enough trades to calibrate.  This is the
+    # CRITICAL-1 assertion requested by the audit.
+    trade_counts = {r: int((merged["regime"] == r).sum()) for r in unique_regimes}
+    undersized = {r: n for r, n in trade_counts.items() if n < min_trades_per_regime}
+    if undersized:
+        raise ValueError(
+            "calibrated_params_per_regime: regime(s) with fewer than "
+            f"{min_trades_per_regime} trades: {undersized}.  "
+            "This indicates genuine data sparsity — widen the calibration "
+            "window (e.g. 190-day data) or drop per-regime sub-sampling "
+            "in favour of joint calibration.  Fallback constants must not "
+            "be silently returned for under-sampled regimes."
+        )
 
     for regime_label in unique_regimes:
         sub = merged[merged["regime"] == regime_label].reset_index(drop=True)
@@ -600,6 +655,7 @@ def calibrated_params_per_regime(
                     "Returned fallback literature constants."
                 ],
                 sigma_rs=None,
+                n_trades=len(sub),
             )
             continue
 
@@ -691,6 +747,12 @@ def calibrated_params_per_regime(
                 lam=lam,
                 fee_bps=7.5,
             )
+            if pre_first_bar_dropped and regime_label == unique_regimes[0]:
+                sub_warnings.insert(
+                    0,
+                    f"{pre_first_bar_dropped} trades dropped: timestamp "
+                    "before first 5-min bar (no regime label).",
+                )
             results[regime_label] = CalibrationResult(
                 params=params_sub,
                 sources={
@@ -701,6 +763,7 @@ def calibrated_params_per_regime(
                 },
                 warnings=sub_warnings,
                 sigma_rs=sigma_rs_sub,
+                n_trades=len(sub),
             )
 
         except Exception as exc:
@@ -724,6 +787,7 @@ def calibrated_params_per_regime(
                     f"Regime {regime_label}: calibration raised exception: {exc!r}"
                 ],
                 sigma_rs=None,
+                n_trades=len(sub),
             )
 
     return results

@@ -166,11 +166,11 @@ def main() -> None:
                 "label": r.label,
                 "regime_idx": idx,
                 "sigma_mult": float(r.sigma),
-                "n_regime_trades": int(len(trades[
-                    trades["timestamp"].isin(
-                        trades["timestamp"]
-                    )
-                ]) if False else 0),  # placeholder; actual count from cal metadata
+                # CRITICAL-1 fix (2026-04-21): calibrated_params_per_regime now
+                # exposes the true per-regime trade count via cal.n_trades.  The
+                # previous placeholder hard-coded 0, which made every stored
+                # entry look like a silent merge_asof failure.
+                "n_regime_trades": int(cal.n_trades) if cal.n_trades is not None else 0,
                 # True per-regime estimates
                 "true_sigma": float(true_sigma),
                 "true_gamma": float(true_gamma),

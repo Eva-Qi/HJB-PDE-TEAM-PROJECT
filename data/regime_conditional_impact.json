@@ -11,35 +11,37 @@
         "label": "risk_on",
         "regime_idx": 0,
         "sigma_mult": 0.7036077257753593,
-        "n_regime_trades": 0,
-        "true_sigma": 0.38508974019331366,
-        "true_gamma": 1.5080652184542604,
-        "true_eta": 0.00014912430368163994,
-        "true_alpha": 0.41944702741887513,
-        "yuhao_gamma": 2.1333689585769844,
-        "yuhao_eta": 1.5512120838517686e-05,
-        "rel_err_gamma": 0.41463972013335665,
-        "rel_err_eta": -0.895978586618356,
+        "n_regime_trades": 93460435,
+        "true_sigma": 0.3850820395740453,
+        "true_gamma": 1.5079863969735723,
+        "true_eta": 0.00014901551408145135,
+        "true_alpha": 0.41968422109505343,
+        "yuhao_gamma": 2.133368958576984,
+        "yuhao_eta": 1.5512120838517682e-05,
+        "rel_err_gamma": 0.4147136624431842,
+        "rel_err_eta": -0.8959026452102241,
         "sources": {
           "sigma": "estimated",
           "gamma": "aggregated_1min",
           "eta": "aggregated_1min",
           "alpha": "aggregated_1min"
         },
-        "warnings": []
+        "warnings": [
+          "1639 trades dropped: timestamp before first 5-min bar (no regime label)."
+        ]
       },
       {
         "label": "risk_off",
         "regime_idx": 1,
-        "sigma_mult": 2.4982397803183574,
-        "n_regime_trades": 0,
-        "true_sigma": 1.170695148414242,
-        "true_gamma": 1.453158566359022,
+        "sigma_mult": 2.498239780318357,
+        "n_regime_trades": 36683451,
+        "true_sigma": 1.1706934125398092,
+        "true_gamma": 1.4539721212473162,
         "true_eta": 0.001,
         "true_alpha": 0.6,
-        "yuhao_gamma": 8.26454217019546,
-        "yuhao_eta": 0.0002133671359281549,
-        "rel_err_gamma": 4.687295496528487,
+        "yuhao_gamma": 8.264542170195464,
+        "yuhao_eta": 0.00021336713592815494,
+        "rel_err_gamma": 4.684113229836606,
         "rel_err_eta": -0.7866328640718451,
         "sources": {
           "sigma": "estimated",
@@ -48,8 +50,8 @@
           "alpha": "fallback"
         },
         "warnings": [
-          "[impact 1min] alpha=0.261 r\u00b2=0.100 out of window for regime 1",
-          "[impact 5min] alpha=0.266 r\u00b2=0.098 out of window for regime 1",
+          "[impact 1min] alpha=0.261 r\u00b2=0.101 out of window for regime 1",
+          "[impact 5min] alpha=0.265 r\u00b2=0.098 out of window for regime 1",
           "Regime 1: all impact methods failed \u2014 using literature fallback eta=1e-3 alpha=0.6"
         ]
       }
@@ -66,37 +68,39 @@
       {
         "label": "risk_on",
         "regime_idx": 0,
-        "sigma_mult": 0.760507768895296,
-        "n_regime_trades": 0,
-        "true_sigma": 0.40895982898585337,
-        "true_gamma": 1.5688259896124517,
-        "true_eta": 0.00015183596668100544,
-        "true_alpha": 0.4226083541463677,
-        "yuhao_gamma": 2.2541714369074977,
-        "yuhao_eta": 1.7715980984599554e-05,
-        "rel_err_gamma": 0.4368524309470086,
-        "rel_err_eta": -0.8833215780697117,
+        "sigma_mult": 0.7605077688952958,
+        "n_regime_trades": 51548516,
+        "true_sigma": 0.4089567517289106,
+        "true_gamma": 1.568899113637892,
+        "true_eta": 0.00015171346501588869,
+        "true_alpha": 0.42271278995667727,
+        "yuhao_gamma": 2.254171436907495,
+        "yuhao_eta": 1.771598098459953e-05,
+        "rel_err_gamma": 0.4367854614186279,
+        "rel_err_eta": -0.8832273655951094,
         "sources": {
           "sigma": "estimated",
           "gamma": "aggregated_1min",
           "eta": "aggregated_1min",
           "alpha": "aggregated_1min"
         },
-        "warnings": []
+        "warnings": [
+          "1639 trades dropped: timestamp before first 5-min bar (no regime label)."
+        ]
       },
       {
         "label": "neutral",
         "regime_idx": 1,
-        "sigma_mult": 0.7751640256800606,
-        "n_regime_trades": 0,
-        "true_sigma": 0.4142783787366065,
-        "true_gamma": 1.3272791902347771,
-        "true_eta": 0.00015278336502719424,
-        "true_alpha": 0.42537068819906576,
-        "yuhao_gamma": 2.3009486270144284,
-        "yuhao_eta": 1.8432113666474988e-05,
-        "rel_err_gamma": 0.7335829898812944,
-        "rel_err_eta": -0.8793578498340168,
+        "sigma_mult": 0.7751640256800605,
+        "n_regime_trades": 52127907,
+        "true_sigma": 0.41427199843514667,
+        "true_gamma": 1.326977728064464,
+        "true_eta": 0.00015268925016913602,
+        "true_alpha": 0.42571785668923734,
+        "yuhao_gamma": 2.3009486270144297,
+        "yuhao_eta": 1.8432113666474998e-05,
+        "rel_err_gamma": 0.7339768244419629,
+        "rel_err_eta": -0.8792834882216168,
         "sources": {
           "sigma": "estimated",
           "gamma": "aggregated_1min",
@@ -108,16 +112,16 @@
       {
         "label": "risk_off",
         "regime_idx": 2,
-        "sigma_mult": 2.8512526805539937,
-        "n_regime_trades": 0,
-        "true_sigma": 1.3244230664210395,
-        "true_gamma": 1.549842100408384,
+        "sigma_mult": 2.851252680553994,
+        "n_regime_trades": 26467463,
+        "true_sigma": 1.3244086664290622,
+        "true_gamma": 1.5510359252348243,
         "true_eta": 0.001,
         "true_alpha": 0.6,
-        "yuhao_gamma": 9.526613865623352,
-        "yuhao_eta": 0.0002807041784194092,
-        "rel_err_gamma": 5.146828675716762,
-        "rel_err_eta": -0.7192958215805909,
+        "yuhao_gamma": 9.526613865623357,
+        "yuhao_eta": 0.0002807041784194094,
+        "rel_err_gamma": 5.142097491507841,
+        "rel_err_eta": -0.7192958215805907,
         "sources": {
           "sigma": "estimated",
           "gamma": "aggregated_1min",
@@ -126,7 +130,7 @@
         },
         "warnings": [
           "[impact 1min] alpha=0.259 r\u00b2=0.102 out of window for regime 2",
-          "[impact 5min] alpha=0.267 r\u00b2=0.104 out of window for regime 2",
+          "[impact 5min] alpha=0.266 r\u00b2=0.104 out of window for regime 2",
           "Regime 2: all impact methods failed \u2014 using literature fallback eta=1e-3 alpha=0.6"
         ]
       }
