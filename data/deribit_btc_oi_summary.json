@@ -1,0 +1,122 @@
+{
+  "source": "Aggregated from data/deribit_btc_option_chain_2026042{0,1}.json",
+  "snapshots": [
+    {
+      "date": "2026-04-20",
+      "underlying_price": 76272.31,
+      "n_contracts": 876,
+      "total_oi_contracts": 421044.9,
+      "total_oi_btc_notional": 421044.9,
+      "total_oi_usd_notional": 32114067136.72,
+      "by_kind": {
+        "call": {
+          "n": 438,
+          "oi": 247502.0,
+          "oi_share": 0.587828
+        },
+        "put": {
+          "n": 438,
+          "oi": 173542.9,
+          "oi_share": 0.412172
+        }
+      },
+      "put_call_ratio": 0.701178,
+      "by_expiry_bucket": {
+        "0-7d": {
+          "n": 274,
+          "oi": 114060.0
+        },
+        "7-30d": {
+          "n": 86,
+          "oi": 17704.7
+        },
+        "30-90d": {
+          "n": 206,
+          "oi": 154162.6
+        },
+        "90d+": {
+          "n": 310,
+          "oi": 135117.6
+        }
+      },
+      "by_moneyness": {
+        "OTM_call": {
+          "n": 228,
+          "oi": 183520.3
+        },
+        "ATM": {
+          "n": 478,
+          "oi": 97011.2
+        },
+        "OTM_put": {
+          "n": 170,
+          "oi": 140513.4
+        }
+      },
+      "atm_iv_short": 0.342417,
+      "atm_iv_long": 0.42975,
+      "iv_skew_25d": 0.0395
+    },
+    {
+      "date": "2026-04-21",
+      "underlying_price": 76032.3,
+      "n_contracts": 878,
+      "total_oi_contracts": 421740.6,
+      "total_oi_btc_notional": 421740.6,
+      "total_oi_usd_notional": 32065907821.38,
+      "by_kind": {
+        "call": {
+          "n": 439,
+          "oi": 247868.3,
+          "oi_share": 0.587727
+        },
+        "put": {
+          "n": 439,
+          "oi": 173872.3,
+          "oi_share": 0.412273
+        }
+      },
+      "put_call_ratio": 0.70147,
+      "by_expiry_bucket": {
+        "0-7d": {
+          "n": 276,
+          "oi": 114435.8
+        },
+        "7-30d": {
+          "n": 86,
+          "oi": 17838.4
+        },
+        "30-90d": {
+          "n": 206,
+          "oi": 154269.9
+        },
+        "90d+": {
+          "n": 310,
+          "oi": 135196.5
+        }
+      },
+      "by_moneyness": {
+        "OTM_call": {
+          "n": 229,
+          "oi": 183716.3
+        },
+        "ATM": {
+          "n": 479,
+          "oi": 97301.9
+        },
+        "OTM_put": {
+          "n": 170,
+          "oi": 140722.4
+        }
+      },
+      "atm_iv_short": 0.356917,
+      "atm_iv_long": 0.42985,
+      "iv_skew_25d": 0.0358
+    }
+  ],
+  "diff_20_to_21": {
+    "oi_change_pct": 0.001652,
+    "put_call_ratio_change": 0.000292,
+    "atm_iv_short_change": 0.0145
+  }
+}

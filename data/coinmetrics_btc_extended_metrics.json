@@ -1,505 +1,2391 @@
 {
-  "start": "2026-01-01",
-  "end": "2026-04-08",
+  "start": "2025-07-01",
+  "end": "2026-04-22",
   "metrics_retrieved": [
+    "AdrActCnt",
+    "TxCnt",
+    "CapMrktCurUSD",
     "CapMVRVCur",
-    "HashRate"
+    "HashRate",
+    "ReferenceRateUSD"
   ],
   "metrics_failed": {
-    "NVTAdj": "HTTP 403",
+    "TxTfrValAdjUSD": "HTTP 403",
+    "VtyDayRet30d": "HTTP 403",
+    "FeeMeanUSD": "HTTP 403",
     "CapRealUSD": "HTTP 403",
-    "ReferenceRateUSD": "Empty data"
+    "NVTAdj": "HTTP 403"
   },
   "data": [
     {
+      "date": "2025-07-01",
+      "AdrActCnt": 796482.0,
+      "TxCnt": 330384.0,
+      "CapMrktCurUSD": 2099293644623.7915,
+      "CapMVRVCur": 2.190371437932748,
+      "HashRate": 779081252.2306603
+    },
+    {
+      "date": "2025-07-02",
+      "AdrActCnt": 794995.0,
+      "TxCnt": 361066.0,
+      "CapMrktCurUSD": 2166178189392.104,
+      "CapMVRVCur": 2.2572933277993874,
+      "HashRate": 889547992.7013457
+    },
+    {
+      "date": "2025-07-03",
+      "AdrActCnt": 798168.0,
+      "TxCnt": 364594.0,
+      "CapMrktCurUSD": 2180250385703.646,
+      "CapMVRVCur": 2.2682210955541695,
+      "HashRate": 877919913.435134
+    },
+    {
+      "date": "2025-07-04",
+      "AdrActCnt": 693948.0,
+      "TxCnt": 365649.0,
+      "CapMrktCurUSD": 2149464119255.1885,
+      "CapMVRVCur": 2.215345083660493,
+      "HashRate": 924432230.4999803
+    },
+    {
+      "date": "2025-07-05",
+      "AdrActCnt": 561792.0,
+      "TxCnt": 436219.0,
+      "CapMrktCurUSD": 2152766699219.0435,
+      "CapMVRVCur": 2.2180745576921685,
+      "HashRate": 912804151.2337688
+    },
+    {
+      "date": "2025-07-06",
+      "AdrActCnt": 613042.0,
+      "TxCnt": 496239.0,
+      "CapMrktCurUSD": 2171420830654.5227,
+      "CapMVRVCur": 2.236333996776805,
+      "HashRate": 930246265.946978
+    },
+    {
+      "date": "2025-07-07",
+      "AdrActCnt": 686261.0,
+      "TxCnt": 374019.0,
+      "CapMrktCurUSD": 2152963631063.5625,
+      "CapMVRVCur": 2.2137003448829926,
+      "HashRate": 877919913.435134
+    },
+    {
+      "date": "2025-07-08",
+      "AdrActCnt": 795709.0,
+      "TxCnt": 342697.0,
+      "CapMrktCurUSD": 2167078035042.8594,
+      "CapMVRVCur": 2.2241472452865456,
+      "HashRate": 825593560.9232903
+    },
+    {
+      "date": "2025-07-09",
+      "AdrActCnt": 779022.0,
+      "TxCnt": 452381.0,
+      "CapMrktCurUSD": 2216066450892.27,
+      "CapMVRVCur": 2.268230580456622,
+      "HashRate": 953502424.4794011
+    },
+    {
+      "date": "2025-07-10",
+      "AdrActCnt": 829216.0,
+      "TxCnt": 434824.0,
+      "CapMrktCurUSD": 2304779478142.834,
+      "CapMVRVCur": 2.3546017983970526,
+      "HashRate": 994200697.7250334
+    },
+    {
+      "date": "2025-07-11",
+      "AdrActCnt": 845548.0,
+      "TxCnt": 409674.0,
+      "CapMrktCurUSD": 2339537436457.521,
+      "CapMVRVCur": 2.38212290459618,
+      "HashRate": 872105877.9881365
+    },
+    {
+      "date": "2025-07-12",
+      "AdrActCnt": 673470.0,
+      "TxCnt": 394126.0,
+      "CapMrktCurUSD": 2334893219628.7124,
+      "CapMVRVCur": 2.37341147249211,
+      "HashRate": 920455694.5281461
+    },
+    {
+      "date": "2025-07-13",
+      "AdrActCnt": 655163.0,
+      "TxCnt": 410972.0,
+      "CapMrktCurUSD": 2365126544898.0674,
+      "CapMVRVCur": 2.4017092198498973,
+      "HashRate": 859946007.0619583
+    },
+    {
+      "date": "2025-07-14",
+      "AdrActCnt": 797345.0,
+      "TxCnt": 450093.0,
+      "CapMrktCurUSD": 2384502915692.5654,
+      "CapMVRVCur": 2.4125084332311304,
+      "HashRate": 910161827.2116249
+    },
+    {
+      "date": "2025-07-15",
+      "AdrActCnt": 753728.0,
+      "TxCnt": 421980.0,
+      "CapMrktCurUSD": 2341591953037.3784,
+      "CapMVRVCur": 2.3641951149221963,
+      "HashRate": 1029424417.0149242
+    },
+    {
+      "date": "2025-07-16",
+      "AdrActCnt": 735726.0,
+      "TxCnt": 402255.0,
+      "CapMrktCurUSD": 2361917162381.5225,
+      "CapMVRVCur": 2.368875124533446,
+      "HashRate": 822284135.1705719
+    },
+    {
+      "date": "2025-07-17",
+      "AdrActCnt": 811618.0,
+      "TxCnt": 428846.0,
+      "CapMrktCurUSD": 2377315036151.223,
+      "CapMVRVCur": 2.3749858049492363,
+      "HashRate": 853669023.8939697
+    },
+    {
+      "date": "2025-07-18",
+      "AdrActCnt": 757713.0,
+      "TxCnt": 449609.0,
+      "CapMrktCurUSD": 2346669299827.5835,
+      "CapMVRVCur": 2.340384009446915,
+      "HashRate": 903884853.0824847
+    },
+    {
+      "date": "2025-07-19",
+      "AdrActCnt": 655287.0,
+      "TxCnt": 432190.0,
+      "CapMrktCurUSD": 2345727189536.0054,
+      "CapMVRVCur": 2.336414214135971,
+      "HashRate": 891330895.7853559
+    },
+    {
+      "date": "2025-07-20",
+      "AdrActCnt": 625098.0,
+      "TxCnt": 405387.0,
+      "CapMrktCurUSD": 2333788554645.3423,
+      "CapMVRVCur": 2.323370138320551,
+      "HashRate": 935269741.8058825
+    },
+    {
+      "date": "2025-07-21",
+      "AdrActCnt": 733805.0,
+      "TxCnt": 388565.0,
+      "CapMrktCurUSD": 2336365376851.4854,
+      "CapMVRVCur": 2.3218439654227243,
+      "HashRate": 941546724.9738711
+    },
+    {
+      "date": "2025-07-22",
+      "AdrActCnt": 730808.0,
+      "TxCnt": 423231.0,
+      "CapMrktCurUSD": 2388857383305.068,
+      "CapMVRVCur": 2.3670956161477066,
+      "HashRate": 941546724.9738711
+    },
+    {
+      "date": "2025-07-23",
+      "AdrActCnt": 738717.0,
+      "TxCnt": 365110.0,
+      "CapMrktCurUSD": 2360708516578.7466,
+      "CapMVRVCur": 2.334400354595592,
+      "HashRate": 878776938.4882271
+    },
+    {
+      "date": "2025-07-24",
+      "AdrActCnt": 719805.0,
+      "TxCnt": 408556.0,
+      "CapMrktCurUSD": 2355321152006.9604,
+      "CapMVRVCur": 2.3257901969225427,
+      "HashRate": 922715784.5087537
+    },
+    {
+      "date": "2025-07-25",
+      "AdrActCnt": 749904.0,
+      "TxCnt": 433467.0,
+      "CapMrktCurUSD": 2338330202043.723,
+      "CapMVRVCur": 2.304027155259395,
+      "HashRate": 1004316502.4206666
+    },
+    {
+      "date": "2025-07-26",
+      "AdrActCnt": 652309.0,
+      "TxCnt": 571396.0,
+      "CapMrktCurUSD": 2347599668866.052,
+      "CapMVRVCur": 2.3118305041157874,
+      "HashRate": 970368223.0482397
+    },
+    {
+      "date": "2025-07-27",
+      "AdrActCnt": 615345.0,
+      "TxCnt": 473722.0,
+      "CapMrktCurUSD": 2376601218524.414,
+      "CapMVRVCur": 2.3388539623352456,
+      "HashRate": 869131964.3263083
+    },
+    {
+      "date": "2025-07-28",
+      "AdrActCnt": 728095.0,
+      "TxCnt": 502425.0,
+      "CapMrktCurUSD": 2348488298493.5293,
+      "CapMVRVCur": 2.3084821087206895,
+      "HashRate": 919884190.6853194
+    },
+    {
+      "date": "2025-07-29",
+      "AdrActCnt": 715626.0,
+      "TxCnt": 346511.0,
+      "CapMrktCurUSD": 2345519559459.0205,
+      "CapMVRVCur": 2.3014237166265827,
+      "HashRate": 710531242.1093705
+    },
+    {
+      "date": "2025-07-30",
+      "AdrActCnt": 733090.0,
+      "TxCnt": 426989.0,
+      "CapMrktCurUSD": 2342809433816.109,
+      "CapMVRVCur": 2.2955727612124828,
+      "HashRate": 869131964.3263083
+    },
+    {
+      "date": "2025-07-31",
+      "AdrActCnt": 752871.0,
+      "TxCnt": 477852.0,
+      "CapMrktCurUSD": 2305368665823.827,
+      "CapMVRVCur": 2.2576734658479003,
+      "HashRate": 976980451.0488331
+    },
+    {
+      "date": "2025-08-01",
+      "AdrActCnt": 838177.0,
+      "TxCnt": 399495.0,
+      "CapMrktCurUSD": 2254355122015.2285,
+      "CapMVRVCur": 2.2070884136924738,
+      "HashRate": 957948367.3061291
+    },
+    {
+      "date": "2025-08-02",
+      "AdrActCnt": 693800.0,
+      "TxCnt": 307246.0,
+      "CapMrktCurUSD": 2239750089818.0874,
+      "CapMVRVCur": 2.1923149563631275,
+      "HashRate": 919884190.6853194
+    },
+    {
+      "date": "2025-08-03",
+      "AdrActCnt": 621756.0,
+      "TxCnt": 289554.0,
+      "CapMrktCurUSD": 2273995431945.681,
+      "CapMVRVCur": 2.2240971442941064,
+      "HashRate": 983324485.0533355
+    },
+    {
+      "date": "2025-08-04",
+      "AdrActCnt": 728238.0,
+      "TxCnt": 451189.0,
+      "CapMrktCurUSD": 2292689374189.235,
+      "CapMVRVCur": 2.240631105189466,
+      "HashRate": 1084828946.9067597
+    },
+    {
+      "date": "2025-08-05",
+      "AdrActCnt": 798131.0,
+      "TxCnt": 408980.0,
+      "CapMrktCurUSD": 2271073998199.12,
+      "CapMVRVCur": 2.2178999959543493,
+      "HashRate": 875475989.1954089
+    },
+    {
+      "date": "2025-08-06",
+      "AdrActCnt": 838450.0,
+      "TxCnt": 495331.0,
+      "CapMrktCurUSD": 2289501873478.173,
+      "CapMVRVCur": 2.2349723954934775,
+      "HashRate": 913540165.8162186
+    },
+    {
+      "date": "2025-08-07",
+      "AdrActCnt": 810557.0,
+      "TxCnt": 564678.0,
+      "CapMrktCurUSD": 2337531175120.7417,
+      "CapMVRVCur": 2.2781308995532936,
+      "HashRate": 1021388661.6741452
+    },
+    {
+      "date": "2025-08-08",
+      "AdrActCnt": 960615.0,
+      "TxCnt": 474837.0,
+      "CapMrktCurUSD": 2323564790361.163,
+      "CapMVRVCur": 2.2621480824612368,
+      "HashRate": 870936594.9483013
+    },
+    {
+      "date": "2025-08-09",
+      "AdrActCnt": 767705.0,
+      "TxCnt": 377106.0,
+      "CapMrktCurUSD": 2319048455360.759,
+      "CapMVRVCur": 2.2569920501462186,
+      "HashRate": 746374217.5096608
+    },
+    {
+      "date": "2025-08-10",
+      "AdrActCnt": 651290.0,
+      "TxCnt": 396369.0,
+      "CapMrktCurUSD": 2372392553182.501,
+      "CapMVRVCur": 2.307419605120224,
+      "HashRate": 868625162.1369319
+    },
+    {
+      "date": "2025-08-11",
+      "AdrActCnt": 760684.0,
+      "TxCnt": 449439.0,
+      "CapMrktCurUSD": 2363546734531.7153,
+      "CapMVRVCur": 2.296376996154095,
+      "HashRate": 945836284.5717697
+    },
+    {
+      "date": "2025-08-12",
+      "AdrActCnt": 721420.0,
+      "TxCnt": 365290.0,
+      "CapMrktCurUSD": 2391709484341.113,
+      "CapMVRVCur": 2.320647620011929,
+      "HashRate": 881493684.0869608
+    },
+    {
+      "date": "2025-08-13",
+      "AdrActCnt": 753168.0,
+      "TxCnt": 444797.0,
+      "CapMrktCurUSD": 2457225396914.5664,
+      "CapMVRVCur": 2.379739102823155,
+      "HashRate": 1003744628.7142318
+    },
+    {
+      "date": "2025-08-14",
+      "AdrActCnt": 803997.0,
+      "TxCnt": 479810.0,
+      "CapMrktCurUSD": 2359101850712.399,
+      "CapMVRVCur": 2.2824160062100023,
+      "HashRate": 1042350194.5643183
+    },
+    {
+      "date": "2025-08-15",
+      "AdrActCnt": 734665.0,
+      "TxCnt": 433563.0,
+      "CapMrktCurUSD": 2335282091620.0776,
+      "CapMVRVCur": 2.25769289975179,
+      "HashRate": 862190905.7945851
+    },
+    {
+      "date": "2025-08-16",
+      "AdrActCnt": 642573.0,
+      "TxCnt": 396105.0,
+      "CapMrktCurUSD": 2338348119563.309,
+      "CapMVRVCur": 2.2532741501991906,
+      "HashRate": 978007594.0795094
+    },
+    {
+      "date": "2025-08-17",
+      "AdrActCnt": 569807.0,
+      "TxCnt": 442159.0,
+      "CapMrktCurUSD": 2341181540292.769,
+      "CapMVRVCur": 2.2553050008051305,
+      "HashRate": 978007594.0795094
+    },
+    {
+      "date": "2025-08-18",
+      "AdrActCnt": 701698.0,
+      "TxCnt": 482626.0,
+      "CapMrktCurUSD": 2315575768549.498,
+      "CapMVRVCur": 2.229656237704237,
+      "HashRate": 990876106.7642031
+    },
+    {
+      "date": "2025-08-19",
+      "AdrActCnt": 670399.0,
+      "TxCnt": 409590.0,
+      "CapMrktCurUSD": 2247401509643.068,
+      "CapMVRVCur": 2.162405961142789,
+      "HashRate": 862190905.7945851
+    },
+    {
+      "date": "2025-08-20",
+      "AdrActCnt": 726389.0,
+      "TxCnt": 424546.0,
+      "CapMrktCurUSD": 2275149059638.685,
+      "CapMVRVCur": 2.187593393945847,
+      "HashRate": 907230727.9870183
+    },
+    {
+      "date": "2025-08-21",
+      "AdrActCnt": 702511.0,
+      "TxCnt": 451619.0,
+      "CapMrktCurUSD": 2236772618107.5776,
+      "CapMVRVCur": 2.1500922222394157,
+      "HashRate": 958704806.5217986
+    },
+    {
+      "date": "2025-08-22",
+      "AdrActCnt": 767825.0,
+      "TxCnt": 457298.0,
+      "CapMrktCurUSD": 2325500247698.1377,
+      "CapMVRVCur": 2.2309603181709265,
+      "HashRate": 939651300.6862692
+    },
+    {
+      "date": "2025-08-23",
+      "AdrActCnt": 662164.0,
+      "TxCnt": 471882.0,
+      "CapMrktCurUSD": 2295281301319.894,
+      "CapMVRVCur": 2.2012721767196215,
+      "HashRate": 980001773.7404907
+    },
+    {
+      "date": "2025-08-24",
+      "AdrActCnt": 610390.0,
+      "TxCnt": 521558.0,
+      "CapMrktCurUSD": 2260210071457.8794,
+      "CapMVRVCur": 2.167328504514984,
+      "HashRate": 1057370331.4047614
+    },
+    {
+      "date": "2025-08-25",
+      "AdrActCnt": 705894.0,
+      "TxCnt": 479193.0,
+      "CapMrktCurUSD": 2192032047921.6606,
+      "CapMVRVCur": 2.101608862718138,
+      "HashRate": 909080592.0131477
+    },
+    {
+      "date": "2025-08-26",
+      "AdrActCnt": 710999.0,
+      "TxCnt": 458661.0,
+      "CapMrktCurUSD": 2228039674983.5347,
+      "CapMVRVCur": 2.1348985660008872,
+      "HashRate": 967107012.5824077
+    },
+    {
+      "date": "2025-08-27",
+      "AdrActCnt": 703023.0,
+      "TxCnt": 506732.0,
+      "CapMrktCurUSD": 2215288753962.2065,
+      "CapMVRVCur": 2.1218251202374474,
+      "HashRate": 967107012.5824077
+    },
+    {
+      "date": "2025-08-28",
+      "AdrActCnt": 696912.0,
+      "TxCnt": 580430.0,
+      "CapMrktCurUSD": 2239813780373.4775,
+      "CapMVRVCur": 2.1427891220239426,
+      "HashRate": 1025133433.1516676
+    },
+    {
+      "date": "2025-08-29",
+      "AdrActCnt": 777455.0,
+      "TxCnt": 587838.0,
+      "CapMrktCurUSD": 2160062777589.6702,
+      "CapMVRVCur": 2.0585239707912053,
+      "HashRate": 1063817707.3416893
+    },
+    {
+      "date": "2025-08-30",
+      "AdrActCnt": 633372.0,
+      "TxCnt": 625477.0,
+      "CapMrktCurUSD": 2165549227144.0295,
+      "CapMVRVCur": 2.063022252855391,
+      "HashRate": 1018686047.9305124
+    },
+    {
+      "date": "2025-08-31",
+      "AdrActCnt": 579281.0,
+      "TxCnt": 482257.0,
+      "CapMrktCurUSD": 2157036868947.1282,
+      "CapMVRVCur": 2.054653984489101,
+      "HashRate": 851054171.4438878
+    },
+    {
+      "date": "2025-09-01",
+      "AdrActCnt": 724476.0,
+      "TxCnt": 597762.0,
+      "CapMrktCurUSD": 2170551279014.5664,
+      "CapMVRVCur": 2.0664722780336136,
+      "HashRate": 1038028194.3097506
+    },
+    {
+      "date": "2025-09-02",
+      "AdrActCnt": 741440.0,
+      "TxCnt": 583102.0,
+      "CapMrktCurUSD": 2213397100781.9453,
+      "CapMVRVCur": 2.1061331661206095,
+      "HashRate": 1050922946.1836063
+    },
+    {
+      "date": "2025-09-03",
+      "AdrActCnt": 757257.0,
+      "TxCnt": 405522.0,
+      "CapMrktCurUSD": 2226186647369.095,
+      "CapMVRVCur": 2.117352868701102,
+      "HashRate": 883291069.6969817
+    },
+    {
+      "date": "2025-09-04",
+      "AdrActCnt": 768977.0,
+      "TxCnt": 400455.0,
+      "CapMrktCurUSD": 2208707196345.665,
+      "CapMVRVCur": 2.0988399671512004,
+      "HashRate": 902633206.7919925
+    },
+    {
+      "date": "2025-09-05",
+      "AdrActCnt": 811569.0,
+      "TxCnt": 414108.0,
+      "CapMrktCurUSD": 2204984484343.3813,
+      "CapMVRVCur": 2.0909910896315393,
+      "HashRate": 959168799.5148377
+    },
+    {
+      "date": "2025-09-06",
+      "AdrActCnt": 613246.0,
+      "TxCnt": 446745.0,
+      "CapMrktCurUSD": 2195720165768.2253,
+      "CapMVRVCur": 2.081547548704114,
+      "HashRate": 946761024.1894387
+    },
+    {
+      "date": "2025-09-07",
+      "AdrActCnt": 594567.0,
+      "TxCnt": 580185.0,
+      "CapMrktCurUSD": 2216968057740.037,
+      "CapMVRVCur": 2.1007955085878978,
+      "HashRate": 1041437124.6607599
+    },
+    {
+      "date": "2025-09-08",
+      "AdrActCnt": 732824.0,
+      "TxCnt": 566372.0,
+      "CapMrktCurUSD": 2233048249212.6406,
+      "CapMVRVCur": 2.114485395928852,
+      "HashRate": 1082012600.4648032
+    },
+    {
+      "date": "2025-09-09",
+      "AdrActCnt": 725526.0,
+      "TxCnt": 618149.0,
+      "CapMrktCurUSD": 2220639486843.1694,
+      "CapMVRVCur": 2.1019000165432096,
+      "HashRate": 1129350650.700464
+    },
+    {
+      "date": "2025-09-10",
+      "AdrActCnt": 687721.0,
+      "TxCnt": 648787.0,
+      "CapMrktCurUSD": 2269387779972.4683,
+      "CapMVRVCur": 2.145924375428194,
+      "HashRate": 1149638393.4715424
+    },
+    {
+      "date": "2025-09-11",
+      "AdrActCnt": 722040.0,
+      "TxCnt": 598534.0,
+      "CapMrktCurUSD": 2299620481124.1,
+      "CapMVRVCur": 2.1718284060122492,
+      "HashRate": 1014386817.1961777
+    },
+    {
+      "date": "2025-09-12",
+      "AdrActCnt": 721666.0,
+      "TxCnt": 397599.0,
+      "CapMrktCurUSD": 2313674623907.2764,
+      "CapMVRVCur": 2.1834524058125826,
+      "HashRate": 811509447.9140742
+    },
+    {
+      "date": "2025-09-13",
+      "AdrActCnt": 684987.0,
+      "TxCnt": 524450.0,
+      "CapMrktCurUSD": 2310069502058.3306,
+      "CapMVRVCur": 2.178678922337634,
+      "HashRate": 953523608.3591694
+    },
+    {
+      "date": "2025-09-14",
+      "AdrActCnt": 646063.0,
+      "TxCnt": 539763.0,
+      "CapMrktCurUSD": 2298776200578.8613,
+      "CapMVRVCur": 2.1673601179200923,
+      "HashRate": 1034674550.2291428
+    },
+    {
+      "date": "2025-09-15",
+      "AdrActCnt": 773239.0,
+      "TxCnt": 534944.0,
+      "CapMrktCurUSD": 2299332980316.204,
+      "CapMVRVCur": 2.1656665085615017,
+      "HashRate": 1102300333.4977684
+    },
+    {
+      "date": "2025-09-16",
+      "AdrActCnt": 747555.0,
+      "TxCnt": 535330.0,
+      "CapMrktCurUSD": 2326841616711.2607,
+      "CapMVRVCur": 2.1888797241350617,
+      "HashRate": 1082012600.4648032
+    },
+    {
+      "date": "2025-09-17",
+      "AdrActCnt": 698218.0,
+      "TxCnt": 362882.0,
+      "CapMrktCurUSD": 2322443908090.3315,
+      "CapMVRVCur": 2.1818070259413114,
+      "HashRate": 865610082.3194654
+    },
+    {
+      "date": "2025-09-18",
+      "AdrActCnt": 729042.0,
+      "TxCnt": 446237.0,
+      "CapMrktCurUSD": 2331240531967.0737,
+      "CapMVRVCur": 2.1884252567803575,
+      "HashRate": 1089165928.9937842
+    },
+    {
+      "date": "2025-09-19",
+      "AdrActCnt": 759748.0,
+      "TxCnt": 483134.0,
+      "CapMrktCurUSD": 2303368556120.721,
+      "CapMVRVCur": 2.1584515968726663,
+      "HashRate": 1188749384.1862066
+    },
+    {
+      "date": "2025-09-20",
+      "AdrActCnt": 711626.0,
+      "TxCnt": 492759.0,
+      "CapMrktCurUSD": 2306228956192.6875,
+      "CapMVRVCur": 2.1600824520314994,
+      "HashRate": 1082611043.2192638
+    },
+    {
+      "date": "2025-09-21",
+      "AdrActCnt": 660574.0,
+      "TxCnt": 515795.0,
+      "CapMrktCurUSD": 2297674188701.3037,
+      "CapMVRVCur": 2.1511992423053936,
+      "HashRate": 1146294045.7615733
+    },
+    {
+      "date": "2025-09-22",
+      "AdrActCnt": 747221.0,
+      "TxCnt": 456797.0,
+      "CapMrktCurUSD": 2246060606259.7524,
+      "CapMVRVCur": 2.1030843290113816,
+      "HashRate": 1061383379.1015873
+    },
+    {
+      "date": "2025-09-23",
+      "AdrActCnt": 674195.0,
+      "TxCnt": 498707.0,
+      "CapMrktCurUSD": 2232655622694.4663,
+      "CapMVRVCur": 2.0884207525288683,
+      "HashRate": 1018928040.6769542
+    },
+    {
+      "date": "2025-09-24",
+      "AdrActCnt": 682109.0,
+      "TxCnt": 526277.0,
+      "CapMrktCurUSD": 2258059127591.763,
+      "CapMVRVCur": 2.1098438050041244,
+      "HashRate": 1082611043.2192638
+    },
+    {
+      "date": "2025-09-25",
+      "AdrActCnt": 741811.0,
+      "TxCnt": 426022.0,
+      "CapMrktCurUSD": 2175251165398.7356,
+      "CapMVRVCur": 2.0312424703115273,
+      "HashRate": 997700376.5592777
+    },
+    {
+      "date": "2025-09-26",
+      "AdrActCnt": 728767.0,
+      "TxCnt": 418111.0,
+      "CapMrktCurUSD": 2185314295488.7644,
+      "CapMVRVCur": 2.0392977420667635,
+      "HashRate": 934017374.016968
+    },
+    {
+      "date": "2025-09-27",
+      "AdrActCnt": 635310.0,
+      "TxCnt": 523531.0,
+      "CapMrktCurUSD": 2184881768009.1887,
+      "CapMVRVCur": 2.0384097258593887,
+      "HashRate": 1096762822.6941414
+    },
+    {
+      "date": "2025-09-28",
+      "AdrActCnt": 652543.0,
+      "TxCnt": 637714.0,
+      "CapMrktCurUSD": 2235260600040.1855,
+      "CapMVRVCur": 2.0843982136269275,
+      "HashRate": 1167521709.8792498
+    },
+    {
+      "date": "2025-09-29",
+      "AdrActCnt": 740289.0,
+      "TxCnt": 449737.0,
+      "CapMrktCurUSD": 2278575750081.5845,
+      "CapMVRVCur": 2.122720877587773,
+      "HashRate": 990624481.7271986
+    },
+    {
+      "date": "2025-09-30",
+      "AdrActCnt": 745290.0,
+      "TxCnt": 556139.0,
+      "CapMrktCurUSD": 2271271762904.084,
+      "CapMVRVCur": 2.112807213335253,
+      "HashRate": 1139218161.1187747
+    },
+    {
+      "date": "2025-10-01",
+      "AdrActCnt": 885196.0,
+      "TxCnt": 471120.0,
+      "CapMrktCurUSD": 2359441494737.0894,
+      "CapMVRVCur": 2.186155026712077,
+      "HashRate": 1079018824.2422624
+    },
+    {
+      "date": "2025-10-02",
+      "AdrActCnt": 804780.0,
+      "TxCnt": 375898.0,
+      "CapMrktCurUSD": 2402645137487.716,
+      "CapMVRVCur": 2.221772196583208,
+      "HashRate": 1019764931.6764337
+    },
+    {
+      "date": "2025-10-03",
+      "AdrActCnt": 797887.0,
+      "TxCnt": 391675.0,
+      "CapMrktCurUSD": 2438354357753.2856,
+      "CapMVRVCur": 2.249202943238196,
+      "HashRate": 884796043.0252874
+    },
+    {
+      "date": "2025-10-04",
+      "AdrActCnt": 743257.0,
+      "TxCnt": 426061.0,
+      "CapMrktCurUSD": 2439035713312.3604,
+      "CapMVRVCur": 2.247639041410611,
+      "HashRate": 1004768398.0907607
+    },
+    {
+      "date": "2025-10-05",
+      "AdrActCnt": 677933.0,
+      "TxCnt": 520032.0,
+      "CapMrktCurUSD": 2461893696556.56,
+      "CapMVRVCur": 2.266766621760195,
+      "HashRate": 1117242464.7683752
+    },
+    {
+      "date": "2025-10-06",
+      "AdrActCnt": 768110.0,
+      "TxCnt": 426681.0,
+      "CapMrktCurUSD": 2487865019395.093,
+      "CapMVRVCur": 2.287145426879909,
+      "HashRate": 922287409.3820033
+    },
+    {
+      "date": "2025-10-07",
+      "AdrActCnt": 767705.0,
+      "TxCnt": 430981.0,
+      "CapMrktCurUSD": 2423405991080.0264,
+      "CapMVRVCur": 2.2193474280974277,
+      "HashRate": 1034761476.0596179
+    },
+    {
+      "date": "2025-10-08",
+      "AdrActCnt": 759929.0,
+      "TxCnt": 431067.0,
+      "CapMrktCurUSD": 2459392369263.4487,
+      "CapMVRVCur": 2.248606081441407,
+      "HashRate": 1109744197.9755387
+    },
+    {
+      "date": "2025-10-09",
+      "AdrActCnt": 719972.0,
+      "TxCnt": 366723.0,
+      "CapMrktCurUSD": 2423819431448.1187,
+      "CapMVRVCur": 2.2125534313089377,
+      "HashRate": 899792587.4084716
+    },
+    {
+      "date": "2025-10-10",
+      "AdrActCnt": 745662.0,
+      "TxCnt": 415580.0,
+      "CapMrktCurUSD": 2267429035644.9536,
+      "CapMVRVCur": 2.070562788244427,
+      "HashRate": 989771853.7075765
+    },
+    {
+      "date": "2025-10-11",
+      "AdrActCnt": 718136.0,
+      "TxCnt": 450131.0,
+      "CapMrktCurUSD": 2211374961639.2163,
+      "CapMVRVCur": 2.019478996261419,
+      "HashRate": 1102245920.385191
+    },
+    {
+      "date": "2025-10-12",
+      "AdrActCnt": 695884.0,
+      "TxCnt": 463010.0,
+      "CapMrktCurUSD": 2295401165962.6973,
+      "CapMVRVCur": 2.0951257451651712,
+      "HashRate": 1087249376.0020068
+    },
+    {
+      "date": "2025-10-13",
+      "AdrActCnt": 680803.0,
+      "TxCnt": 489858.0,
+      "CapMrktCurUSD": 2299030741394.9785,
+      "CapMVRVCur": 2.09746317757528,
+      "HashRate": 1139737286.741907
+    },
+    {
+      "date": "2025-10-14",
+      "AdrActCnt": 706371.0,
+      "TxCnt": 563809.0,
+      "CapMrktCurUSD": 2259119504832.801,
+      "CapMVRVCur": 2.056829337301677,
+      "HashRate": 1267207897.8027055
+    },
+    {
+      "date": "2025-10-15",
+      "AdrActCnt": 695775.0,
+      "TxCnt": 484211.0,
+      "CapMrktCurUSD": 2210046641902.439,
+      "CapMVRVCur": 2.0058910258061653,
+      "HashRate": 1079751109.2091703
+    },
+    {
+      "date": "2025-10-16",
+      "AdrActCnt": 740169.0,
+      "TxCnt": 490450.0,
+      "CapMrktCurUSD": 2155719311026.7778,
+      "CapMVRVCur": 1.9578568178170297,
+      "HashRate": 1123253238.739343
+    },
+    {
+      "date": "2025-10-17",
+      "AdrActCnt": 772447.0,
+      "TxCnt": 485148.0,
+      "CapMrktCurUSD": 2125682123928.4111,
+      "CapMVRVCur": 1.9292830315776204,
+      "HashRate": 1159633835.7101064
+    },
+    {
+      "date": "2025-10-18",
+      "AdrActCnt": 608801.0,
+      "TxCnt": 564015.0,
+      "CapMrktCurUSD": 2136069072945.8809,
+      "CapMVRVCur": 1.9381495183779993,
+      "HashRate": 1203393595.9617257
+    },
+    {
+      "date": "2025-10-19",
+      "AdrActCnt": 595209.0,
+      "TxCnt": 437518.0,
+      "CapMrktCurUSD": 2167271973156.9055,
+      "CapMVRVCur": 1.965929731213064,
+      "HashRate": 1013767943.699239
+    },
+    {
+      "date": "2025-10-20",
+      "AdrActCnt": 679663.0,
+      "TxCnt": 422448.0,
+      "CapMrktCurUSD": 2205873161783.9473,
+      "CapMVRVCur": 2.0002412420408935,
+      "HashRate": 1086700884.4535005
+    },
+    {
+      "date": "2025-10-21",
+      "AdrActCnt": 733522.0,
+      "TxCnt": 437054.0,
+      "CapMrktCurUSD": 2167248302706.2048,
+      "CapMVRVCur": 1.9642552693241937,
+      "HashRate": 1093994184.8303332
+    },
+    {
+      "date": "2025-10-22",
+      "AdrActCnt": 695833.0,
+      "TxCnt": 480827.0,
+      "CapMrktCurUSD": 2146708963448.5059,
+      "CapMVRVCur": 1.9422693938130509,
+      "HashRate": 1115874064.956143
+    },
+    {
+      "date": "2025-10-23",
+      "AdrActCnt": 679681.0,
+      "TxCnt": 436183.0,
+      "CapMrktCurUSD": 2194476255972.5574,
+      "CapMVRVCur": 1.9838505829202955,
+      "HashRate": 1035647823.8250486
+    },
+    {
+      "date": "2025-10-24",
+      "AdrActCnt": 734616.0,
+      "TxCnt": 565682.0,
+      "CapMrktCurUSD": 2213759431224.074,
+      "CapMVRVCur": 2.0002399703642184,
+      "HashRate": 1305499727.7209737
+    },
+    {
+      "date": "2025-10-25",
+      "AdrActCnt": 595504.0,
+      "TxCnt": 502467.0,
+      "CapMrktCurUSD": 2225571303267.163,
+      "CapMVRVCur": 2.010123020095332,
+      "HashRate": 1166927125.5845947
+    },
+    {
+      "date": "2025-10-26",
+      "AdrActCnt": 584836.0,
+      "TxCnt": 521439.0,
+      "CapMrktCurUSD": 2284298071832.6084,
+      "CapMVRVCur": 2.061141989497095,
+      "HashRate": 1072114294.2021794
+    },
+    {
+      "date": "2025-10-27",
+      "AdrActCnt": 726782.0,
+      "TxCnt": 505599.0,
+      "CapMrktCurUSD": 2274991986566.83,
+      "CapMVRVCur": 2.0506486983041583,
+      "HashRate": 1072114294.2021794
+    },
+    {
+      "date": "2025-10-28",
+      "AdrActCnt": 693980.0,
+      "TxCnt": 526865.0,
+      "CapMrktCurUSD": 2252973055585.6294,
+      "CapMVRVCur": 2.0269852854220023,
+      "HashRate": 1181513715.835916
+    },
+    {
+      "date": "2025-10-29",
+      "AdrActCnt": 667087.0,
+      "TxCnt": 395521.0,
+      "CapMrktCurUSD": 2197691726032.41,
+      "CapMVRVCur": 1.9748570714184714,
+      "HashRate": 932047920.0122601
+    },
+    {
+      "date": "2025-10-30",
+      "AdrActCnt": 708971.0,
+      "TxCnt": 551534.0,
+      "CapMrktCurUSD": 2154140935697.1548,
+      "CapMVRVCur": 1.9325248327320044,
+      "HashRate": 1240553836.426268
+    },
+    {
+      "date": "2025-10-31",
+      "AdrActCnt": 723709.0,
+      "TxCnt": 460460.0,
+      "CapMrktCurUSD": 2184790344305.3538,
+      "CapMVRVCur": 1.9596274069163773,
+      "HashRate": 1085484605.4773614
+    },
+    {
+      "date": "2025-11-01",
+      "AdrActCnt": 683092.0,
+      "TxCnt": 387158.0,
+      "CapMrktCurUSD": 2193832993167.6711,
+      "CapMVRVCur": 1.9663440701835697,
+      "HashRate": 1069977681.2659724
+    },
+    {
+      "date": "2025-11-02",
+      "AdrActCnt": 575622.0,
+      "TxCnt": 405694.0,
+      "CapMrktCurUSD": 2201542028456.724,
+      "CapMVRVCur": 1.9727764696344197,
+      "HashRate": 1201786531.4802876
+    },
+    {
+      "date": "2025-11-03",
+      "AdrActCnt": 772175.0,
+      "TxCnt": 452775.0,
+      "CapMrktCurUSD": 2123942098026.172,
+      "CapMVRVCur": 1.9020882532144816,
+      "HashRate": 1100991529.6887505
+    },
+    {
+      "date": "2025-11-04",
+      "AdrActCnt": 779122.0,
+      "TxCnt": 370080.0,
+      "CapMrktCurUSD": 2021350949128.4888,
+      "CapMVRVCur": 1.8116855886218344,
+      "HashRate": 1015703452.1086028
+    },
+    {
+      "date": "2025-11-05",
+      "AdrActCnt": 747953.0,
+      "TxCnt": 399776.0,
+      "CapMrktCurUSD": 2072575814667.257,
+      "CapMVRVCur": 1.8570557344204919,
+      "HashRate": 1069977681.2659724
+    },
+    {
+      "date": "2025-11-06",
+      "AdrActCnt": 737224.0,
+      "TxCnt": 414343.0,
+      "CapMrktCurUSD": 2019281654873.9138,
+      "CapMVRVCur": 1.8097201631689654,
+      "HashRate": 1085484605.4773614
+    },
+    {
+      "date": "2025-11-07",
+      "AdrActCnt": 752529.0,
+      "TxCnt": 477171.0,
+      "CapMrktCurUSD": 2062945632162.0864,
+      "CapMVRVCur": 1.8428465053331913,
+      "HashRate": 1100991529.6887505
+    },
+    {
+      "date": "2025-11-08",
+      "AdrActCnt": 622449.0,
+      "TxCnt": 351704.0,
+      "CapMrktCurUSD": 2041174456726.6418,
+      "CapMVRVCur": 1.8227583856026046,
+      "HashRate": 930415374.5284549
+    },
+    {
+      "date": "2025-11-09",
+      "AdrActCnt": 607063.0,
+      "TxCnt": 467846.0,
+      "CapMrktCurUSD": 2088104138262.2363,
+      "CapMVRVCur": 1.8641651761462625,
+      "HashRate": 1093238073.1655483
+    },
+    {
+      "date": "2025-11-10",
+      "AdrActCnt": 723219.0,
+      "TxCnt": 451762.0,
+      "CapMrktCurUSD": 2116014386447.375,
+      "CapMVRVCur": 1.8875443600732529,
+      "HashRate": 1085484605.4773614
+    },
+    {
+      "date": "2025-11-11",
+      "AdrActCnt": 717240.0,
+      "TxCnt": 480595.0,
+      "CapMrktCurUSD": 2054067273200.924,
+      "CapMVRVCur": 1.831888197421843,
+      "HashRate": 1186279607.2688985
+    },
+    {
+      "date": "2025-11-12",
+      "AdrActCnt": 666761.0,
+      "TxCnt": 452672.0,
+      "CapMrktCurUSD": 2028334526602.0334,
+      "CapMVRVCur": 1.808509903130079,
+      "HashRate": 1085693709.7267337
+    },
+    {
+      "date": "2025-11-13",
+      "AdrActCnt": 715565.0,
+      "TxCnt": 481822.0,
+      "CapMrktCurUSD": 1995531055051.6218,
+      "CapMVRVCur": 1.7800126434105845,
+      "HashRate": 1135417896.8857453
+    },
+    {
+      "date": "2025-11-14",
+      "AdrActCnt": 804891.0,
+      "TxCnt": 484096.0,
+      "CapMrktCurUSD": 1885204557913.1167,
+      "CapMVRVCur": 1.6842606972655323,
+      "HashRate": 1090001177.5223117
+    },
+    {
+      "date": "2025-11-15",
+      "AdrActCnt": 735457.0,
+      "TxCnt": 485232.0,
+      "CapMrktCurUSD": 1905969346288.112,
+      "CapMVRVCur": 1.7025099652616347,
+      "HashRate": 1082431729.7450786
+    },
+    {
+      "date": "2025-11-16",
+      "AdrActCnt": 599175.0,
+      "TxCnt": 582885.0,
+      "CapMrktCurUSD": 1878905175037.5247,
+      "CapMVRVCur": 1.6785525812642026,
+      "HashRate": 1203542970.4808898
+    },
+    {
+      "date": "2025-11-17",
+      "AdrActCnt": 722706.0,
+      "TxCnt": 406170.0,
+      "CapMrktCurUSD": 1833638268626.4456,
+      "CapMVRVCur": 1.6392867114437717,
+      "HashRate": 938612123.8775449
+    },
+    {
+      "date": "2025-11-18",
+      "AdrActCnt": 783873.0,
+      "TxCnt": 321895.0,
+      "CapMrktCurUSD": 1852130060915.071,
+      "CapMVRVCur": 1.654516965238705,
+      "HashRate": 1006737197.4726894
+    },
+    {
+      "date": "2025-11-19",
+      "AdrActCnt": 740835.0,
+      "TxCnt": 359976.0,
+      "CapMrktCurUSD": 1821925037070.4468,
+      "CapMVRVCur": 1.628739580213074,
+      "HashRate": 1037015010.3816451
+    },
+    {
+      "date": "2025-11-20",
+      "AdrActCnt": 712914.0,
+      "TxCnt": 357950.0,
+      "CapMrktCurUSD": 1733993481993.4502,
+      "CapMVRVCur": 1.5515619978194948,
+      "HashRate": 991598291.0182115
+    },
+    {
+      "date": "2025-11-21",
+      "AdrActCnt": 798210.0,
+      "TxCnt": 416326.0,
+      "CapMrktCurUSD": 1694864140154.9482,
+      "CapMVRVCur": 1.5202473672522108,
+      "HashRate": 1142987344.6629784
+    },
+    {
+      "date": "2025-11-22",
+      "AdrActCnt": 653472.0,
+      "TxCnt": 472844.0,
+      "CapMrktCurUSD": 1691449473896.7935,
+      "CapMVRVCur": 1.5063202250156786,
+      "HashRate": 1082431729.7450786
+    },
+    {
+      "date": "2025-11-23",
+      "AdrActCnt": 587259.0,
+      "TxCnt": 318830.0,
+      "CapMrktCurUSD": 1733336869377.817,
+      "CapMVRVCur": 1.5408129016405958,
+      "HashRate": 1074862271.067834
+    },
+    {
+      "date": "2025-11-24",
+      "AdrActCnt": 672046.0,
+      "TxCnt": 399370.0,
+      "CapMrktCurUSD": 1763408070508.766,
+      "CapMVRVCur": 1.5674035927405894,
+      "HashRate": 1082431729.7450786
+    },
+    {
+      "date": "2025-11-25",
+      "AdrActCnt": 673473.0,
+      "TxCnt": 351642.0,
+      "CapMrktCurUSD": 1744622674821.2332,
+      "CapMVRVCur": 1.550709768072391,
+      "HashRate": 870487050.2824004
+    },
+    {
+      "date": "2025-11-26",
+      "AdrActCnt": 719513.0,
+      "TxCnt": 476755.0,
+      "CapMrktCurUSD": 1804823283719.3835,
+      "CapMVRVCur": 1.6019179596137354,
+      "HashRate": 1240799633.4969137
+    },
+    {
+      "date": "2025-11-27",
+      "AdrActCnt": 675201.0,
+      "TxCnt": 404471.0,
+      "CapMrktCurUSD": 1822561745081.4658,
+      "CapMVRVCur": 1.6180110246025807,
+      "HashRate": 1061317862.9627874
+    },
+    {
+      "date": "2025-11-28",
+      "AdrActCnt": 703533.0,
+      "TxCnt": 510984.0,
+      "CapMrktCurUSD": 1815698698812.7935,
+      "CapMVRVCur": 1.6124043653578792,
+      "HashRate": 1113270484.2052977
+    },
+    {
+      "date": "2025-11-29",
+      "AdrActCnt": 630159.0,
+      "TxCnt": 403759.0,
+      "CapMrktCurUSD": 1812783212323.2876,
+      "CapMVRVCur": 1.609812435967487,
+      "HashRate": 1016787040.1746085
+    },
+    {
+      "date": "2025-11-30",
+      "AdrActCnt": 601718.0,
+      "TxCnt": 514580.0,
+      "CapMrktCurUSD": 1808153535032.7244,
+      "CapMVRVCur": 1.605936798624271,
+      "HashRate": 1239441132.7407093
+    },
+    {
+      "date": "2025-12-01",
+      "AdrActCnt": 737081.0,
+      "TxCnt": 399941.0,
+      "CapMrktCurUSD": 1726309340197.7156,
+      "CapMVRVCur": 1.533958697259218,
+      "HashRate": 987099824.9824893
+    },
+    {
+      "date": "2025-12-02",
+      "AdrActCnt": 743961.0,
+      "TxCnt": 415283.0,
+      "CapMrktCurUSD": 1826593716093.038,
+      "CapMVRVCur": 1.6233866164835693,
+      "HashRate": 942569002.1943104
+    },
+    {
+      "date": "2025-12-03",
+      "AdrActCnt": 716757.0,
+      "TxCnt": 430832.0,
+      "CapMrktCurUSD": 1868163523113.6948,
+      "CapMVRVCur": 1.6594397707736588,
+      "HashRate": 979678026.5281578
+    },
+    {
+      "date": "2025-12-04",
+      "AdrActCnt": 693069.0,
+      "TxCnt": 414769.0,
+      "CapMrktCurUSD": 1840191787722.407,
+      "CapMVRVCur": 1.6346860768202705,
+      "HashRate": 979678026.5281578
+    },
+    {
+      "date": "2025-12-05",
+      "AdrActCnt": 712886.0,
+      "TxCnt": 350006.0,
+      "CapMrktCurUSD": 1781834205884.9922,
+      "CapMVRVCur": 1.5845510954223285,
+      "HashRate": 883194582.4974687
+    },
+    {
+      "date": "2025-12-06",
+      "AdrActCnt": 615281.0,
+      "TxCnt": 529256.0,
+      "CapMrktCurUSD": 1779678725951.9175,
+      "CapMVRVCur": 1.5825974776524672,
+      "HashRate": 1209753917.5485902
+    },
+    {
+      "date": "2025-12-07",
+      "AdrActCnt": 545020.0,
+      "TxCnt": 546753.0,
+      "CapMrktCurUSD": 1797652167928.5693,
+      "CapMVRVCur": 1.5985004613781386,
+      "HashRate": 1187488511.498199
+    },
+    {
+      "date": "2025-12-08",
+      "AdrActCnt": 666566.0,
+      "TxCnt": 575607.0,
+      "CapMrktCurUSD": 1809775147324.2783,
+      "CapMVRVCur": 1.6096177386431436,
+      "HashRate": 1098426876.6092381
+    },
+    {
+      "date": "2025-12-09",
+      "AdrActCnt": 668386.0,
+      "TxCnt": 446113.0,
+      "CapMrktCurUSD": 1852439848225.9653,
+      "CapMVRVCur": 1.6469894512126808,
+      "HashRate": 957412609.7903701
+    },
+    {
+      "date": "2025-12-10",
+      "AdrActCnt": 689654.0,
+      "TxCnt": 554922.0,
+      "CapMrktCurUSD": 1838394451226.9824,
+      "CapMVRVCur": 1.6325770870501284,
+      "HashRate": 1150379497.8517485
+    },
+    {
+      "date": "2025-12-11",
+      "AdrActCnt": 656012.0,
+      "TxCnt": 475726.0,
+      "CapMrktCurUSD": 1848835839973.1758,
+      "CapMVRVCur": 1.6416453987249757,
+      "HashRate": 1179627150.3762481
+    },
+    {
+      "date": "2025-12-12",
+      "AdrActCnt": 761375.0,
+      "TxCnt": 411109.0,
+      "CapMrktCurUSD": 1803124581759.215,
+      "CapMVRVCur": 1.6020026597826393,
+      "HashRate": 1068190149.6701112
+    },
+    {
+      "date": "2025-12-13",
+      "AdrActCnt": 601306.0,
+      "TxCnt": 500012.0,
+      "CapMrktCurUSD": 1801441441839.3125,
+      "CapMVRVCur": 1.6004071227927794,
+      "HashRate": 1053456501.7977914
+    },
+    {
+      "date": "2025-12-14",
+      "AdrActCnt": 564048.0,
+      "TxCnt": 418597.0,
+      "CapMrktCurUSD": 1758581468490.5964,
+      "CapMVRVCur": 1.5625992937931457,
+      "HashRate": 942954068.4977604
+    },
+    {
+      "date": "2025-12-15",
+      "AdrActCnt": 663223.0,
+      "TxCnt": 419887.0,
+      "CapMrktCurUSD": 1723807816697.5964,
+      "CapMVRVCur": 1.5334507834438562,
+      "HashRate": 987155043.9394194
+    },
+    {
+      "date": "2025-12-16",
+      "AdrActCnt": 696716.0,
+      "TxCnt": 442553.0,
+      "CapMrktCurUSD": 1751792518937.351,
+      "CapMVRVCur": 1.5583000660090016,
+      "HashRate": 1082923808.150664
+    },
+    {
+      "date": "2025-12-17",
+      "AdrActCnt": 675987.0,
+      "TxCnt": 451215.0,
+      "CapMrktCurUSD": 1718034910274.951,
+      "CapMVRVCur": 1.529104503632707,
+      "HashRate": 1016622350.2922922
+    },
+    {
+      "date": "2025-12-18",
+      "AdrActCnt": 725880.0,
+      "TxCnt": 461224.0,
+      "CapMrktCurUSD": 1705589102848.2754,
+      "CapMVRVCur": 1.5183951212093738,
+      "HashRate": 1060823325.7339513
+    },
+    {
+      "date": "2025-12-19",
+      "AdrActCnt": 735738.0,
+      "TxCnt": 433546.0,
+      "CapMrktCurUSD": 1760207641640.7705,
+      "CapMVRVCur": 1.5669393446155329,
+      "HashRate": 1068190149.6701112
+    },
+    {
+      "date": "2025-12-20",
+      "AdrActCnt": 613352.0,
+      "TxCnt": 441258.0,
+      "CapMrktCurUSD": 1762731347927.2922,
+      "CapMVRVCur": 1.5699331395911071,
+      "HashRate": 1082923808.150664
+    },
+    {
+      "date": "2025-12-21",
+      "AdrActCnt": 565021.0,
+      "TxCnt": 440054.0,
+      "CapMrktCurUSD": 1767580565650.2676,
+      "CapMVRVCur": 1.5740329131051052,
+      "HashRate": 1016622350.2922922
+    },
+    {
+      "date": "2025-12-22",
+      "AdrActCnt": 667969.0,
+      "TxCnt": 426021.0,
+      "CapMrktCurUSD": 1766441678579.3882,
+      "CapMVRVCur": 1.5730377244463174,
+      "HashRate": 1023989184.8366853
+    },
+    {
+      "date": "2025-12-23",
+      "AdrActCnt": 672116.0,
+      "TxCnt": 431814.0,
+      "CapMrktCurUSD": 1744350079363.6633,
+      "CapMVRVCur": 1.5534926720508597,
+      "HashRate": 1068190149.6701112
+    },
+    {
+      "date": "2025-12-24",
+      "AdrActCnt": 667297.0,
+      "TxCnt": 503638.0,
+      "CapMrktCurUSD": 1749578331319.529,
+      "CapMVRVCur": 1.5586263806194098,
+      "HashRate": 1171325759.0339823
+    },
+    {
+      "date": "2025-12-25",
+      "AdrActCnt": 562104.0,
+      "TxCnt": 465274.0,
+      "CapMrktCurUSD": 1741741838969.6328,
+      "CapMVRVCur": 1.551577942876589,
+      "HashRate": 1016989504.5854222
+    },
+    {
+      "date": "2025-12-26",
+      "AdrActCnt": 613757.0,
+      "TxCnt": 513354.0,
+      "CapMrktCurUSD": 1743851052661.9036,
+      "CapMVRVCur": 1.5547999122682274,
+      "HashRate": 1149714805.066739
+    },
+    {
+      "date": "2025-12-27",
+      "AdrActCnt": 569638.0,
+      "TxCnt": 475008.0,
+      "CapMrktCurUSD": 1751088738231.2805,
+      "CapMVRVCur": 1.5611304886162418,
+      "HashRate": 1002315469.4510928
+    },
+    {
+      "date": "2025-12-28",
+      "AdrActCnt": 572908.0,
+      "TxCnt": 540696.0,
+      "CapMrktCurUSD": 1752174226540.3967,
+      "CapMVRVCur": 1.5623713813655937,
+      "HashRate": 1142344843.0616953
+    },
+    {
+      "date": "2025-12-29",
+      "AdrActCnt": 693511.0,
+      "TxCnt": 548253.0,
+      "CapMrktCurUSD": 1739952832712.9775,
+      "CapMVRVCur": 1.55184373281198,
+      "HashRate": 1134974870.4438994
+    },
+    {
+      "date": "2025-12-30",
+      "AdrActCnt": 749500.0,
+      "TxCnt": 366458.0,
+      "CapMrktCurUSD": 1765844968792.5854,
+      "CapMVRVCur": 1.575194732866138,
+      "HashRate": 877026041.0760822
+    },
+    {
+      "date": "2025-12-31",
+      "AdrActCnt": 697063.0,
+      "TxCnt": 407824.0,
+      "CapMrktCurUSD": 1747679146138.2644,
+      "CapMVRVCur": 1.5599368640000815,
+      "HashRate": 980205572.823209
+    },
+    {
       "date": "2026-01-01",
+      "AdrActCnt": 570904.0,
+      "TxCnt": 469075.0,
+      "CapMrktCurUSD": 1771030307456.4983,
       "CapMVRVCur": 1.5805666838787138,
       "HashRate": 1112864973.8160157
     },
     {
       "date": "2026-01-02",
+      "AdrActCnt": 702623.0,
+      "TxCnt": 458150.0,
+      "CapMrktCurUSD": 1796152439786.1328,
       "CapMVRVCur": 1.6028335346054856,
       "HashRate": 1061275207.9424522
     },
     {
       "date": "2026-01-03",
+      "AdrActCnt": 618923.0,
+      "TxCnt": 496980.0,
+      "CapMrktCurUSD": 1809335929206.2751,
       "CapMVRVCur": 1.6144428345714434,
       "HashRate": 1142344843.0616953
     },
     {
       "date": "2026-01-04",
+      "AdrActCnt": 629824.0,
+      "TxCnt": 478738.0,
+      "CapMrktCurUSD": 1824587914852.6606,
       "CapMVRVCur": 1.6278233718322608,
       "HashRate": 1068645169.947496
     },
     {
       "date": "2026-01-05",
+      "AdrActCnt": 687169.0,
+      "TxCnt": 410199.0,
+      "CapMrktCurUSD": 1876329155088.7573,
       "CapMVRVCur": 1.672965606192001,
       "HashRate": 972835610.8181652
     },
     {
       "date": "2026-01-06",
+      "AdrActCnt": 698247.0,
+      "TxCnt": 422822.0,
+      "CapMrktCurUSD": 1868891796056.5054,
       "CapMVRVCur": 1.6656981847227375,
       "HashRate": 958095676.1953254
     },
     {
       "date": "2026-01-07",
+      "AdrActCnt": 644966.0,
+      "TxCnt": 424312.0,
+      "CapMrktCurUSD": 1821692646787.2021,
       "CapMVRVCur": 1.6234736025512655,
       "HashRate": 1083385104.5703359
     },
     {
       "date": "2026-01-08",
+      "AdrActCnt": 631893.0,
+      "TxCnt": 335049.0,
+      "CapMrktCurUSD": 1819492476510.5996,
       "CapMVRVCur": 1.6216948371778772,
       "HashRate": 964845793.9226341
     },
     {
       "date": "2026-01-09",
+      "AdrActCnt": 664665.0,
+      "TxCnt": 351155.0,
+      "CapMrktCurUSD": 1808401358128.1196,
       "CapMVRVCur": 1.6124074298017157,
       "HashRate": 1033929117.8333746
     },
     {
       "date": "2026-01-10",
+      "AdrActCnt": 608784.0,
+      "TxCnt": 492984.0,
+      "CapMrktCurUSD": 1805781433869.5881,
       "CapMVRVCur": 1.6100132123879032,
       "HashRate": 1179552938.5755997
     },
     {
       "date": "2026-01-11",
+      "AdrActCnt": 536405.0,
+      "TxCnt": 289219.0,
+      "CapMrktCurUSD": 1812029241680.1577,
       "CapMVRVCur": 1.61585640170226,
       "HashRate": 888305297.0911496
     },
     {
       "date": "2026-01-12",
+      "AdrActCnt": 638422.0,
+      "TxCnt": 405384.0,
+      "CapMrktCurUSD": 1820537738213.6345,
       "CapMVRVCur": 1.6235117369511674,
       "HashRate": 1033929117.8333746
     },
     {
       "date": "2026-01-13",
+      "AdrActCnt": 701272.0,
+      "TxCnt": 340763.0,
+      "CapMrktCurUSD": 1903740522551.2454,
       "CapMVRVCur": 1.6956457102183626,
       "HashRate": 982960782.1463331
     },
     {
       "date": "2026-01-14",
+      "AdrActCnt": 707589.0,
+      "TxCnt": 326077.0,
+      "CapMrktCurUSD": 1938525133766.5828,
       "CapMVRVCur": 1.725258285011508,
       "HashRate": 902867680.2138635
     },
     {
       "date": "2026-01-15",
+      "AdrActCnt": 717904.0,
+      "TxCnt": 375169.0,
+      "CapMrktCurUSD": 1908645921457.2375,
       "CapMVRVCur": 1.698251329285832,
       "HashRate": 1012085548.3917611
     },
     {
       "date": "2026-01-16",
+      "AdrActCnt": 692686.0,
+      "TxCnt": 362621.0,
+      "CapMrktCurUSD": 1907545876899.8354,
       "CapMVRVCur": 1.6967501163466354,
       "HashRate": 946554829.5820056
     },
     {
       "date": "2026-01-17",
+      "AdrActCnt": 572689.0,
+      "TxCnt": 354936.0,
+      "CapMrktCurUSD": 1899956122538.015,
       "CapMVRVCur": 1.6895599397740113,
       "HashRate": 1084897453.5204163
     },
     {
       "date": "2026-01-18",
+      "AdrActCnt": 567075.0,
+      "TxCnt": 332784.0,
+      "CapMrktCurUSD": 1883103755876.9592,
       "CapMVRVCur": 1.6743922801666509,
       "HashRate": 1019366734.7106606
     },
     {
       "date": "2026-01-19",
+      "AdrActCnt": 623139.0,
+      "TxCnt": 353668.0,
+      "CapMrktCurUSD": 1848484453618.5076,
       "CapMVRVCur": 1.6436868798008477,
       "HashRate": 1092178650.3242307
     },
     {
       "date": "2026-01-20",
+      "AdrActCnt": 640908.0,
+      "TxCnt": 386279.0,
+      "CapMrktCurUSD": 1762822147346.9717,
       "CapMVRVCur": 1.5689223614895769,
       "HashRate": 968398399.023619
     },
     {
       "date": "2026-01-21",
+      "AdrActCnt": 698736.0,
+      "TxCnt": 427046.0,
+      "CapMrktCurUSD": 1790086994742.5427,
       "CapMVRVCur": 1.5933664347912717,
       "HashRate": 997523165.2690471
     },
     {
       "date": "2026-01-22",
+      "AdrActCnt": 612517.0,
+      "TxCnt": 464766.0,
+      "CapMrktCurUSD": 1786063068452.813,
       "CapMVRVCur": 1.5900557424434003,
       "HashRate": 1162718505.7701015
     },
     {
       "date": "2026-01-23",
+      "AdrActCnt": 664123.0,
+      "TxCnt": 437544.0,
+      "CapMrktCurUSD": 1786982708956.3025,
       "CapMVRVCur": 1.597227656500748,
       "HashRate": 985930372.216906
     },
     {
       "date": "2026-01-24",
+      "AdrActCnt": 562317.0,
+      "TxCnt": 284304.0,
+      "CapMrktCurUSD": 1781920520861.2185,
       "CapMVRVCur": 1.5927055312322624,
       "HashRate": 690151266.636433
     },
     {
       "date": "2026-01-25",
+      "AdrActCnt": 555249.0,
+      "TxCnt": 317176.0,
+      "CapMrktCurUSD": 1727217015608.6611,
       "CapMVRVCur": 1.5441681672754624,
       "HashRate": 760574860.3057843
     },
     {
       "date": "2026-01-26",
+      "AdrActCnt": 635513.0,
+      "TxCnt": 399372.0,
+      "CapMrktCurUSD": 1765049801467.8804,
       "CapMVRVCur": 1.5779781705662028,
       "HashRate": 873252616.2613451
     },
     {
       "date": "2026-01-27",
+      "AdrActCnt": 624246.0,
+      "TxCnt": 365975.0,
+      "CapMrktCurUSD": 1783524598036.6025,
       "CapMVRVCur": 1.594258404220792,
       "HashRate": 859167895.4992752
     },
     {
       "date": "2026-01-28",
+      "AdrActCnt": 631786.0,
+      "TxCnt": 342139.0,
+      "CapMrktCurUSD": 1781904984387.2817,
       "CapMVRVCur": 1.5929682871962683,
       "HashRate": 774659581.0678542
     },
     {
       "date": "2026-01-29",
+      "AdrActCnt": 681624.0,
+      "TxCnt": 421064.0,
+      "CapMrktCurUSD": 1688877168322.3572,
       "CapMVRVCur": 1.5108463744510505,
       "HashRate": 901422057.7854849
     },
     {
       "date": "2026-01-30",
+      "AdrActCnt": 733411.0,
+      "TxCnt": 383042.0,
+      "CapMrktCurUSD": 1678853413751.91,
       "CapMVRVCur": 1.5027941233677342,
       "HashRate": 922549133.8580906
     },
     {
       "date": "2026-01-31",
+      "AdrActCnt": 702918.0,
+      "TxCnt": 403447.0,
+      "CapMrktCurUSD": 1572688463359.5845,
       "CapMVRVCur": 1.409206961565977,
       "HashRate": 971845651.4548361
     },
     {
       "date": "2026-02-01",
+      "AdrActCnt": 613261.0,
+      "TxCnt": 356739.0,
+      "CapMrktCurUSD": 1536921339757.8945,
       "CapMVRVCur": 1.3779375282101736,
       "HashRate": 838040819.4266695
     },
     {
       "date": "2026-02-02",
+      "AdrActCnt": 734473.0,
+      "TxCnt": 354152.0,
+      "CapMrktCurUSD": 1573030843440.0928,
       "CapMVRVCur": 1.411272421681785,
       "HashRate": 830998453.9751356
     },
     {
       "date": "2026-02-03",
+      "AdrActCnt": 741467.0,
+      "TxCnt": 435204.0,
+      "CapMrktCurUSD": 1512475464307.3,
       "CapMVRVCur": 1.3597906397012434,
       "HashRate": 929591499.3096247
     },
     {
       "date": "2026-02-04",
+      "AdrActCnt": 704812.0,
+      "TxCnt": 412289.0,
+      "CapMrktCurUSD": 1460758146742.2795,
       "CapMVRVCur": 1.315930750700471,
       "HashRate": 1000015092.9789759
     },
     {
       "date": "2026-02-05",
+      "AdrActCnt": 865167.0,
+      "TxCnt": 384528.0,
+      "CapMrktCurUSD": 1268923762593.2034,
       "CapMVRVCur": 1.1497951473288677,
       "HashRate": 894379692.3339509
     },
     {
       "date": "2026-02-06",
+      "AdrActCnt": 856992.0,
+      "TxCnt": 407706.0,
+      "CapMrktCurUSD": 1411906693993.6548,
       "CapMVRVCur": 1.2794885803917828,
       "HashRate": 1021142169.0515816
     },
     {
       "date": "2026-02-07",
+      "AdrActCnt": 645574.0,
+      "TxCnt": 493708.0,
+      "CapMrktCurUSD": 1382335759076.3145,
       "CapMVRVCur": 1.2542864998384384,
       "HashRate": 1112468740.2429836
     },
     {
       "date": "2026-02-08",
+      "AdrActCnt": 555675.0,
+      "TxCnt": 512816.0,
+      "CapMrktCurUSD": 1409480417712.4243,
       "CapMVRVCur": 1.278752679408799,
       "HashRate": 1063649664.9870175
     },
     {
       "date": "2026-02-09",
+      "AdrActCnt": 682068.0,
+      "TxCnt": 394855.0,
+      "CapMrktCurUSD": 1403950284903.542,
       "CapMVRVCur": 1.274890122985872,
       "HashRate": 1019852317.996721
     },
     {
       "date": "2026-02-10",
+      "AdrActCnt": 624916.0,
+      "TxCnt": 390874.0,
+      "CapMrktCurUSD": 1372895651922.4705,
       "CapMVRVCur": 1.2481033012418763,
       "HashRate": 900973830.4794545
     },
     {
       "date": "2026-02-11",
+      "AdrActCnt": 659141.0,
+      "TxCnt": 451472.0,
+      "CapMrktCurUSD": 1338968761086.8115,
       "CapMVRVCur": 1.2182387788490885,
       "HashRate": 982311747.733236
     },
     {
       "date": "2026-02-12",
+      "AdrActCnt": 653355.0,
+      "TxCnt": 494350.0,
+      "CapMrktCurUSD": 1323651411101.5576,
       "CapMVRVCur": 1.2056557515363073,
       "HashRate": 1107447002.9675756
     },
     {
       "date": "2026-02-13",
+      "AdrActCnt": 684978.0,
+      "TxCnt": 520762.0,
+      "CapMrktCurUSD": 1376438775426.905,
       "CapMVRVCur": 1.2543817127922632,
       "HashRate": 944771168.4600127
     },
     {
       "date": "2026-02-14",
+      "AdrActCnt": 583422.0,
+      "TxCnt": 550168.0,
+      "CapMrktCurUSD": 1395209152714.0444,
       "CapMVRVCur": 1.271428434942344,
       "HashRate": 1038622612.138202
     },
     {
       "date": "2026-02-15",
+      "AdrActCnt": 532309.0,
+      "TxCnt": 691973.0,
+      "CapMrktCurUSD": 1371901612478.9856,
       "CapMVRVCur": 1.2503520156434709,
       "HashRate": 1232582258.2019153
     },
     {
       "date": "2026-02-16",
+      "AdrActCnt": 592609.0,
+      "TxCnt": 529377.0,
+      "CapMrktCurUSD": 1374287575683.373,
       "CapMVRVCur": 1.2529918805039757,
       "HashRate": 1094933476.5431678
     },
     {
       "date": "2026-02-17",
+      "AdrActCnt": 595445.0,
+      "TxCnt": 661420.0,
+      "CapMrktCurUSD": 1348806897572.9492,
       "CapMVRVCur": 1.2303595955650781,
       "HashRate": 1032365844.4211289
     },
     {
       "date": "2026-02-18",
+      "AdrActCnt": 595919.0,
+      "TxCnt": 505310.0,
+      "CapMrktCurUSD": 1327041682412.6785,
       "CapMVRVCur": 1.2114637146625802,
       "HashRate": 957284694.8844204
     },
     {
       "date": "2026-02-19",
+      "AdrActCnt": 616639.0,
+      "TxCnt": 502602.0,
+      "CapMrktCurUSD": 1338103087136.072,
       "CapMVRVCur": 1.2218447878485281,
       "HashRate": 1025228859.3917797
     },
     {
       "date": "2026-02-20",
+      "AdrActCnt": 662947.0,
+      "TxCnt": 417965.0,
+      "CapMrktCurUSD": 1359022838573.6174,
       "CapMVRVCur": 1.2419474106076231,
       "HashRate": 983397437.0251606
     },
     {
       "date": "2026-02-21",
+      "AdrActCnt": 579813.0,
+      "TxCnt": 344028.0,
+      "CapMrktCurUSD": 1359914969948.6675,
       "CapMVRVCur": 1.2427727388908916,
       "HashRate": 854191934.5012189
     },
     {
       "date": "2026-02-22",
+      "AdrActCnt": 525709.0,
+      "TxCnt": 538994.0,
+      "CapMrktCurUSD": 1350540164036.8374,
       "CapMVRVCur": 1.234286313377275,
       "HashRate": 1177205690.811073
     },
     {
       "date": "2026-02-23",
+      "AdrActCnt": 684644.0,
+      "TxCnt": 448909.0,
+      "CapMrktCurUSD": 1293387338339.2383,
       "CapMVRVCur": 1.1831842972470235,
       "HashRate": 1062356356.3827294
     },
     {
       "date": "2026-02-24",
+      "AdrActCnt": 661423.0,
+      "TxCnt": 568326.0,
+      "CapMrktCurUSD": 1282100773328.001,
       "CapMVRVCur": 1.1743319937937022,
       "HashRate": 1184383769.690652
     },
     {
       "date": "2026-02-25",
+      "AdrActCnt": 650235.0,
+      "TxCnt": 481942.0,
+      "CapMrktCurUSD": 1360406516183.8442,
       "CapMVRVCur": 1.2461229941727416,
       "HashRate": 1119781018.4286811
     },
     {
       "date": "2026-02-26",
+      "AdrActCnt": 693519.0,
+      "TxCnt": 429268.0,
+      "CapMrktCurUSD": 1350053680284.782,
       "CapMVRVCur": 1.2368113915864163,
       "HashRate": 1004931684.0003375
     },
     {
       "date": "2026-02-27",
+      "AdrActCnt": 704075.0,
+      "TxCnt": 411023.0,
+      "CapMrktCurUSD": 1316988256328.348,
       "CapMVRVCur": 1.2073254705520617,
       "HashRate": 1012109773.2163565
     },
     {
       "date": "2026-02-28",
+      "AdrActCnt": 640533.0,
+      "TxCnt": 426230.0,
+      "CapMrktCurUSD": 1339043246944.1082,
       "CapMVRVCur": 1.2275612619982268,
       "HashRate": 1026465941.3119545
     },
     {
       "date": "2026-03-01",
+      "AdrActCnt": 602506.0,
+      "TxCnt": 464241.0,
+      "CapMrktCurUSD": 1314436530955.2666,
       "CapMVRVCur": 1.205248174799525,
       "HashRate": 1069534435.2623082
     },
     {
       "date": "2026-03-02",
+      "AdrActCnt": 690831.0,
+      "TxCnt": 420983.0,
+      "CapMrktCurUSD": 1378236536262.6738,
       "CapMVRVCur": 1.263760682233652,
       "HashRate": 976219347.8091415
     },
     {
       "date": "2026-03-03",
+      "AdrActCnt": 652464.0,
+      "TxCnt": 377782.0,
+      "CapMrktCurUSD": 1368437726302.048,
       "CapMVRVCur": 1.2548907532524818,
       "HashRate": 961863190.0499837
     },
     {
       "date": "2026-03-04",
+      "AdrActCnt": 697294.0,
+      "TxCnt": 382886.0,
+      "CapMrktCurUSD": 1453181528720.1433,
       "CapMVRVCur": 1.3324599332646212,
       "HashRate": 933150853.8587878
     },
     {
       "date": "2026-03-05",
+      "AdrActCnt": 686708.0,
+      "TxCnt": 459142.0,
+      "CapMrktCurUSD": 1419621513717.071,
       "CapMVRVCur": 1.3020998734899654,
       "HashRate": 1193001934.391659
     },
     {
       "date": "2026-03-06",
+      "AdrActCnt": 672019.0,
+      "TxCnt": 446899.0,
+      "CapMrktCurUSD": 1364443146701.8782,
       "CapMVRVCur": 1.2527874949037452,
       "HashRate": 1052672433.1900946
     },
     {
       "date": "2026-03-07",
+      "AdrActCnt": 592224.0,
+      "TxCnt": 435530.0,
+      "CapMrktCurUSD": 1346249079545.6663,
       "CapMVRVCur": 1.236301300128931,
       "HashRate": 951731243.3842347
     },
     {
       "date": "2026-03-08",
+      "AdrActCnt": 523172.0,
+      "TxCnt": 457769.0,
+      "CapMrktCurUSD": 1324020725745.869,
       "CapMVRVCur": 1.2160004257646573,
       "HashRate": 966151414.8397179
     },
     {
       "date": "2026-03-09",
+      "AdrActCnt": 627803.0,
+      "TxCnt": 408602.0,
+      "CapMrktCurUSD": 1370565923110.882,
       "CapMVRVCur": 1.2588288726421142,
       "HashRate": 994991747.3681617
     },
     {
       "date": "2026-03-10",
+      "AdrActCnt": 649875.0,
+      "TxCnt": 378570.0,
+      "CapMrktCurUSD": 1397861675303.8767,
       "CapMVRVCur": 1.2838921987216934,
       "HashRate": 994991747.3681617
     },
     {
       "date": "2026-03-11",
+      "AdrActCnt": 629140.0,
+      "TxCnt": 405045.0,
+      "CapMrktCurUSD": 1406027387800.1365,
       "CapMVRVCur": 1.2926305604960422,
       "HashRate": 1002201838.2871646
     },
     {
       "date": "2026-03-12",
+      "AdrActCnt": 640192.0,
+      "TxCnt": 450856.0,
+      "CapMrktCurUSD": 1410846656064.0881,
       "CapMVRVCur": 1.297352966463531,
       "HashRate": 930100981.0097485
     },
     {
       "date": "2026-03-13",
+      "AdrActCnt": 676568.0,
+      "TxCnt": 401832.0,
+      "CapMrktCurUSD": 1418712062331.4456,
       "CapMVRVCur": 1.30454126489792,
       "HashRate": 872420305.5703381
     },
     {
       "date": "2026-03-14",
+      "AdrActCnt": 557544.0,
+      "TxCnt": 441416.0,
+      "CapMrktCurUSD": 1422864934640.0215,
       "CapMVRVCur": 1.3085611269402389,
       "HashRate": 922890900.4732682
     },
     {
       "date": "2026-03-15",
+      "AdrActCnt": 534462.0,
+      "TxCnt": 399359.0,
+      "CapMrktCurUSD": 1454415017618.7727,
       "CapMVRVCur": 1.3372863065162932,
       "HashRate": 901260648.4813046
     },
     {
       "date": "2026-03-16",
+      "AdrActCnt": 701802.0,
+      "TxCnt": 410501.0,
+      "CapMrktCurUSD": 1494685195333.6306,
       "CapMVRVCur": 1.3736647820354706,
       "HashRate": 901260648.4813046
     },
     {
       "date": "2026-03-17",
+      "AdrActCnt": 679525.0,
+      "TxCnt": 374546.0,
+      "CapMrktCurUSD": 1481953960271.9119,
       "CapMVRVCur": 1.3620392217241302,
       "HashRate": 915680809.5542653
     },
     {
       "date": "2026-03-18",
+      "AdrActCnt": 625137.0,
+      "TxCnt": 437912.0,
+      "CapMrktCurUSD": 1425334864470.0562,
       "CapMVRVCur": 1.3108271207032423,
       "HashRate": 1002201838.2871646
     },
     {
       "date": "2026-03-19",
+      "AdrActCnt": 603884.0,
+      "TxCnt": 442942.0,
+      "CapMrktCurUSD": 1399258410166.362,
       "CapMVRVCur": 1.2873233530441246,
       "HashRate": 966151414.8397179
     },
     {
       "date": "2026-03-20",
+      "AdrActCnt": 656663.0,
+      "TxCnt": 422037.0,
+      "CapMrktCurUSD": 1410520483673.4092,
       "CapMVRVCur": 1.2979134579553593,
       "HashRate": 956085963.7654023
     },
     {
       "date": "2026-03-21",
+      "AdrActCnt": 586709.0,
+      "TxCnt": 490235.0,
+      "CapMrktCurUSD": 1394484296727.6091,
       "CapMVRVCur": 1.2832286394689276,
       "HashRate": 917823289.7687207
     },
     {
       "date": "2026-03-22",
+      "AdrActCnt": 545348.0,
+      "TxCnt": 639039.0,
+      "CapMrktCurUSD": 1360727895569.4658,
       "CapMVRVCur": 1.2516621596693462,
       "HashRate": 1077444735.2152627
     },
     {
       "date": "2026-03-23",
+      "AdrActCnt": 640101.0,
+      "TxCnt": 530619.0,
+      "CapMrktCurUSD": 1414938935053.9595,
       "CapMVRVCur": 1.301409408329922,
       "HashRate": 1064142947.2966102
     },
     {
       "date": "2026-03-24",
+      "AdrActCnt": 587472.0,
+      "TxCnt": 384088.0,
+      "CapMrktCurUSD": 1412641989096.3228,
       "CapMVRVCur": 1.3002777489726738,
       "HashRate": 831361682.6634102
     },
     {
       "date": "2026-03-25",
+      "AdrActCnt": 657017.0,
+      "TxCnt": 514188.0,
+      "CapMrktCurUSD": 1426105842430.46,
       "CapMVRVCur": 1.3129187923123302,
       "HashRate": 1017586694.3699702
     },
     {
       "date": "2026-03-26",
+      "AdrActCnt": 623105.0,
+      "TxCnt": 634223.0,
+      "CapMrktCurUSD": 1374957542916.4944,
       "CapMVRVCur": 1.2664072256679186,
       "HashRate": 1097397412.3045979
     },
     {
       "date": "2026-03-27",
+      "AdrActCnt": 640242.0,
+      "TxCnt": 656575.0,
+      "CapMrktCurUSD": 1324794804322.2463,
       "CapMVRVCur": 1.221391534843414,
       "HashRate": 1010935805.1992873
     },
     {
       "date": "2026-03-28",
+      "AdrActCnt": 555352.0,
+      "TxCnt": 776246.0,
+      "CapMrktCurUSD": 1327569960241.5442,
       "CapMVRVCur": 1.224282130242581,
       "HashRate": 1157255453.1498902
     },
     {
       "date": "2026-03-29",
+      "AdrActCnt": 513446.0,
+      "TxCnt": 621290.0,
+      "CapMrktCurUSD": 1319910065564.9558,
       "CapMVRVCur": 1.2173465160210977,
       "HashRate": 957728653.5246779
     },
     {
       "date": "2026-03-30",
+      "AdrActCnt": 631420.0,
+      "TxCnt": 539789.0,
+      "CapMrktCurUSD": 1333633950994.4387,
       "CapMVRVCur": 1.2307677885365405,
       "HashRate": 904521501.8500684
     },
     {
       "date": "2026-03-31",
+      "AdrActCnt": 630351.0,
+      "TxCnt": 519911.0,
+      "CapMrktCurUSD": 1364949957429.4087,
       "CapMVRVCur": 1.259461592624952,
       "HashRate": 904521501.8500684
     },
     {
       "date": "2026-04-01",
+      "AdrActCnt": 697142.0,
+      "TxCnt": 686646.0,
+      "CapMrktCurUSD": 1363022478623.5505,
       "CapMVRVCur": 1.2578004357870882,
       "HashRate": 1077444735.2152627
     },
     {
       "date": "2026-04-02",
+      "AdrActCnt": 653581.0,
+      "TxCnt": 501473.0,
+      "CapMrktCurUSD": 1338870647177.839,
       "CapMVRVCur": 1.2361570581529684,
       "HashRate": 964379542.6953608
     },
     {
       "date": "2026-04-03",
+      "AdrActCnt": 647348.0,
+      "TxCnt": 460217.0,
+      "CapMrktCurUSD": 1338566550263.67,
       "CapMVRVCur": 1.236095290145614,
       "HashRate": 900036039.4277527
     },
     {
       "date": "2026-04-04",
+      "AdrActCnt": 546885.0,
+      "TxCnt": 439257.0,
+      "CapMrktCurUSD": 1346663972184.613,
       "CapMVRVCur": 1.2435879583030516,
       "HashRate": 828969678.3136718
     },
     {
       "date": "2026-04-05",
+      "AdrActCnt": 496633.0,
+      "TxCnt": 725843.0,
+      "CapMrktCurUSD": 1379250124896.7249,
       "CapMVRVCur": 1.2731860065048008,
       "HashRate": 1098384831.4750333
     },
     {
       "date": "2026-04-06",
+      "AdrActCnt": 608673.0,
+      "TxCnt": 461763.0,
+      "CapMrktCurUSD": 1375697653591.4316,
       "CapMVRVCur": 1.2700938124247623,
       "HashRate": 884234328.1768135
     },
     {
       "date": "2026-04-07",
+      "AdrActCnt": 640745.0,
+      "TxCnt": 539413.0,
+      "CapMrktCurUSD": 1442053417557.3213,
       "CapMVRVCur": 1.3307033415283853,
       "HashRate": 953315130.5581044
     },
     {
       "date": "2026-04-08",
+      "AdrActCnt": 632101.0,
+      "TxCnt": 560671.0,
+      "CapMrktCurUSD": 1422632685924.1663,
       "CapMVRVCur": 1.3129220338742065,
       "HashRate": 1022395942.8870316
+    },
+    {
+      "date": "2026-04-09",
+      "AdrActCnt": 627910.0,
+      "TxCnt": 579019.0,
+      "CapMrktCurUSD": 1436746639526.9473,
+      "CapMVRVCur": 1.3258289461254553,
+      "HashRate": 994763617.9554607
+    },
+    {
+      "date": "2026-04-10",
+      "AdrActCnt": 655019.0,
+      "TxCnt": 453045.0,
+      "CapMrktCurUSD": 1459918626570.64,
+      "CapMVRVCur": 1.3468426562660187,
+      "HashRate": 863510089.4519535
+    },
+    {
+      "date": "2026-04-11",
+      "AdrActCnt": 567547.0,
+      "TxCnt": 472181.0,
+      "CapMrktCurUSD": 1463429926532.002,
+      "CapMVRVCur": 1.3497406830177825,
+      "HashRate": 849693926.986168
+    },
+    {
+      "date": "2026-04-12",
+      "AdrActCnt": 523902.0,
+      "TxCnt": 709385.0,
+      "CapMrktCurUSD": 1414754502718.0574,
+      "CapMVRVCur": 1.3049673347970956,
+      "HashRate": 1070752506.5434624
+    },
+    {
+      "date": "2026-04-13",
+      "AdrActCnt": 631173.0,
+      "TxCnt": 631372.0,
+      "CapMrktCurUSD": 1493795013094.8875,
+      "CapMVRVCur": 1.3770482398402828,
+      "HashRate": 1022395942.8870316
+    },
+    {
+      "date": "2026-04-14",
+      "AdrActCnt": 648935.0,
+      "TxCnt": 609752.0,
+      "CapMrktCurUSD": 1484641267129.7375,
+      "CapMVRVCur": 1.3687529040183417,
+      "HashRate": 1132925232.6656787
+    },
+    {
+      "date": "2026-04-15",
+      "AdrActCnt": 648996.0,
+      "TxCnt": 461922.0,
+      "CapMrktCurUSD": 1496448887839.818,
+      "CapMVRVCur": 1.3796263886883917,
+      "HashRate": 863510089.4519535
+    },
+    {
+      "date": "2026-04-16",
+      "AdrActCnt": 642428.0,
+      "TxCnt": 643440.0,
+      "CapMrktCurUSD": 1503165549783.1582,
+      "CapMVRVCur": 1.3856258612153995,
+      "HashRate": 1050028267.8186023,
+      "ReferenceRateUSD": 74761.964654588
+    },
+    {
+      "date": "2026-04-17",
+      "AdrActCnt": 666008.0,
+      "TxCnt": 548624.0,
+      "CapMrktCurUSD": 1543607893397.0964,
+      "CapMVRVCur": 1.4223235153878984,
+      "HashRate": 967334466.916483,
+      "ReferenceRateUSD": 75095.7442159556
+    },
+    {
+      "date": "2026-04-18",
+      "AdrActCnt": 571160.0,
+      "TxCnt": 690658.0,
+      "CapMrktCurUSD": 1517173171126.9146,
+      "CapMVRVCur": 1.3980047368399022,
+      "HashRate": 1031290054.5634836,
+      "ReferenceRateUSD": 77114.481438048
+    },
+    {
+      "date": "2026-04-19",
+      "AdrActCnt": 510705.0,
+      "TxCnt": 733999.0,
+      "CapMrktCurUSD": 1479439310993.9817,
+      "CapMVRVCur": 1.3634656752952108,
+      "HashRate": 1064992341.7713568,
+      "ReferenceRateUSD": 75792.0637510228
+    },
+    {
+      "date": "2026-04-20",
+      "AdrActCnt": 630657.0,
+      "TxCnt": 551469.0,
+      "CapMrktCurUSD": 1517683423347.0813,
+      "CapMVRVCur": 1.3987305546501194,
+      "HashRate": 876259525.6422594,
+      "ReferenceRateUSD": 73905.2041016949
+    },
+    {
+      "date": "2026-04-21",
+      "AdrActCnt": 627674.0,
+      "TxCnt": 532601.0,
+      "CapMrktCurUSD": 1523586908754.2576,
+      "CapMVRVCur": 1.4040391749892125,
+      "HashRate": 909961812.8501326,
+      "ReferenceRateUSD": 75814.1453237873
+    },
+    {
+      "date": "2026-04-22",
+      "ReferenceRateUSD": 76107.4432977791
     }
   ]
 }
