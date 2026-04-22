@@ -55,7 +55,7 @@ def _run_q_measure() -> dict:
             underlying_price=S0,
             r=0.0,
             q=0.0,
-            n_starts=5,
+            n_starts=8,
             delta_filter=(0.10, 0.90),
             seed=42,
         )

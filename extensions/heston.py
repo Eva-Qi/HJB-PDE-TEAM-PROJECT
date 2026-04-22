@@ -572,7 +572,7 @@ def calibrate_heston_from_options(
         return base_loss + FELLER_PENALTY * feller_violation
 
     # ------------------------------------------------------------------ #
-    # Step 3 — bounds + multi-start L-BFGS-B                            #
+    # Step 3 — bounds + multi-start L-BFGS-B with Feller-aware selection #
     # ------------------------------------------------------------------ #
     bounds = [
         (0.1, 10.0),    # kappa
@@ -582,9 +582,13 @@ def calibrate_heston_from_options(
         (0.01, 2.0),    # v0
     ]
 
+    # Feller-healthy selection threshold: prefer solutions where
+    # 2*kappa*theta - xi^2 > FELLER_THIN_THRESHOLD.
+    # Solutions below this margin sit in the pathological high-xi basin
+    # (razor-thin or violated Feller) and should be deprioritised.
+    FELLER_THIN_THRESHOLD = 0.01
+
     rng = np.random.default_rng(seed)
-    best_result = None
-    best_loss = np.inf
 
     # Seed the first start near a sensible "crypto" prior to speed convergence
     starts = []
@@ -593,14 +597,23 @@ def calibrate_heston_from_options(
         (df["strike"] - S0).abs().idxmin(), "market_iv"
     ]) if len(df) > 0 else 0.80
     v0_prior = atm_iv_approx**2  # variance ≈ IV²
+
+    # Literature prior (start 0): moderate kappa, low xi, slightly negative rho
     starts.append([2.0, v0_prior, 0.5 * atm_iv_approx, -0.3, v0_prior])
 
-    # Additional random starts
-    for _ in range(n_starts - 1):
+    # Additional deterministic prior (start 1): BTC leverage-effect prior with
+    # low vol-of-vol — explicitly avoids the high-xi pathological basin
+    starts.append([3.0, max(v0_prior, 0.04), 0.1, -0.5, max(v0_prior, 0.04)])
+
+    # Random starts fill remaining slots
+    for _ in range(max(0, n_starts - 2)):
         p0 = [
             rng.uniform(lo, hi) for lo, hi in bounds
         ]
         starts.append(p0)
+
+    # Collect ALL successful results so we can apply Feller-aware selection
+    all_results: list[tuple[float, float, np.ndarray]] = []  # (loss, feller_margin, x)
 
     for p0 in starts:
         try:
@@ -615,17 +628,33 @@ def calibrate_heston_from_options(
             warnings.warn(f"calibrate_heston_from_options: optimizer failed ({exc})")
             continue
 
-        if res.fun < best_loss:
-            best_loss = res.fun
-            best_result = res
+        if not np.isfinite(res.fun):
+            continue
 
-    if best_result is None:
+        kp, th, xi_, rh, v_ = res.x
+        fm = 2.0 * kp * th - xi_**2
+        all_results.append((float(res.fun), float(fm), res.x.copy()))
+
+    if not all_results:
         raise RuntimeError(
             "calibrate_heston_from_options: all optimizer starts failed. "
             "Check option chain quality."
         )
 
-    kappa, theta, xi, rho, v0 = best_result.x
+    # Feller-aware selection:
+    #   1. Prefer solutions with feller_margin > FELLER_THIN_THRESHOLD (healthy basin).
+    #      Among those, pick the one with the lowest loss.
+    #   2. If ALL solutions are Feller-thin, fall back to the minimum-loss solution
+    #      but emit a warning so the caller knows no healthy basin was found.
+    healthy = [(lv, fm, xv) for lv, fm, xv in all_results if fm > FELLER_THIN_THRESHOLD]
+    all_feller_thin = len(healthy) == 0
+
+    if healthy:
+        best_loss, best_feller_margin, best_x = min(healthy, key=lambda t: t[0])
+    else:
+        best_loss, best_feller_margin, best_x = min(all_results, key=lambda t: t[0])
+
+    kappa, theta, xi, rho, v0 = best_x
     kappa = float(kappa)
     theta = float(theta)
     xi = float(xi)
@@ -637,6 +666,24 @@ def calibrate_heston_from_options(
     # ------------------------------------------------------------------ #
     feller_lhs = 2.0 * kappa * theta
     feller_rhs = xi**2
+    feller_margin_final = feller_lhs - feller_rhs
+
+    if all_feller_thin:
+        warnings.warn(
+            f"calibrate_heston_from_options: ALL {len(all_results)} starts converged to "
+            f"Feller-thin solutions (feller_margin <= {FELLER_THIN_THRESHOLD}). "
+            f"Best feller_margin={best_feller_margin:.6f}. "
+            f"Consider increasing n_starts or inspecting option chain quality. "
+            f"n_contracts={n_contracts}, loss={best_loss:.6f}"
+        )
+    elif feller_margin_final < FELLER_THIN_THRESHOLD:
+        # Shouldn't happen after healthy-basin selection, but guard anyway
+        warnings.warn(
+            f"calibrate_heston_from_options: selected solution has thin Feller margin "
+            f"({feller_margin_final:.6f} < {FELLER_THIN_THRESHOLD}). "
+            f"n_contracts={n_contracts}, loss={best_loss:.6f}"
+        )
+
     if feller_lhs < feller_rhs:
         warnings.warn(
             f"calibrate_heston_from_options: Feller condition violated — "
@@ -645,10 +692,14 @@ def calibrate_heston_from_options(
             f"n_contracts={n_contracts}, loss={best_loss:.6f}"
         )
     else:
+        n_healthy = len(healthy)
+        n_total = len(all_results)
         print(
             f"[calibrate_heston_from_options] Converged. "
             f"n_contracts={n_contracts}, loss={best_loss:.6f}, "
-            f"Feller satisfied (2κθ={feller_lhs:.3f} ≥ ξ²={feller_rhs:.3f})"
+            f"Feller satisfied (2κθ={feller_lhs:.3f} ≥ ξ²={feller_rhs:.3f}), "
+            f"feller_margin={feller_margin_final:.4f}, "
+            f"healthy_starts={n_healthy}/{n_total}"
         )
 
     return HestonParams(kappa=kappa, theta=theta, xi=xi, rho=rho, v0=v0)
