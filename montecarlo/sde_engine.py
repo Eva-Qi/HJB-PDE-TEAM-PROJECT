@@ -487,11 +487,20 @@ def _regime_params_from_label(
 ):
     """Map regime label to the corresponding ACParams.
 
-    Convention: 0 -> risk_on, 1 -> risk_off.
+    Convention: 0 -> risk_on, 1 -> risk_off. Any other label raises — the
+    previous silent fallback to risk_off corrupted 3-state Viterbi outputs
+    by aliasing label=2 (neutral) to risk_off, inflating cost estimates by
+    up to ~268% on those bars. See AUDIT_VERIFICATION.md N-3.
     """
     if regime_label == 0:
         return risk_on_params
-    return risk_off_params
+    if regime_label == 1:
+        return risk_off_params
+    raise ValueError(
+        f"_regime_params_from_label received regime_label={regime_label}; "
+        f"only 0 (risk_on) and 1 (risk_off) are supported. 3-state Viterbi "
+        f"outputs must be collapsed to 2 states before this call."
+    )
 
 
 def _compute_execution_cost_step(
@@ -590,6 +599,7 @@ def simulate_regime_execution(
     control_mode: str = "rule",
     pde_controls: dict | None = None,
     pde_M: int = 200,
+    z_extern: np.ndarray | None = None,
 ) -> dict:
     """Simulate one execution path with regime-conditional parameter switching.
 
@@ -625,6 +635,12 @@ def simulate_regime_execution(
         If None and control_mode="pde", solved automatically.
     pde_M : int
         PDE inventory grid resolution if auto-solving.
+    z_extern : np.ndarray, shape (N,) or None
+        Pre-generated standard normal increments for CRN (common random
+        numbers). If provided, `random_state` is ignored. Use this to share
+        the same Brownian draw across multiple paired simulations (e.g. aware
+        vs single-regime) so that differences are driven by parameter choice,
+        not noise.
 
     Returns
     -------
@@ -644,7 +660,17 @@ def simulate_regime_execution(
             f"regime_path length {len(regime_path)} must equal base_params.N = {base_params.N}"
         )
 
-    rng = np.random.default_rng(random_state)
+    # z_extern: pre-generated normal increments for CRN (common random numbers).
+    # Shape must be (base_params.N,) — one draw per step.
+    if z_extern is not None:
+        z_extern = np.asarray(z_extern, dtype=float).reshape(-1)
+        if z_extern.shape[0] != base_params.N:
+            raise ValueError(
+                f"z_extern length {z_extern.shape[0]} must equal base_params.N = {base_params.N}"
+            )
+        rng = None  # will not be used
+    else:
+        rng = np.random.default_rng(random_state)
 
     dt = base_params.T / base_params.N
     t_grid = np.linspace(0.0, base_params.T, base_params.N + 1)
@@ -708,10 +734,13 @@ def simulate_regime_execution(
         trade_rate[k] = v
 
         # Regime-dependent price dynamics
-        z = rng.standard_normal()
+        z = z_extern[k] if z_extern is not None else rng.standard_normal()
         perm_impact = current_params.gamma * v
         sigma = current_params.sigma
         s_next = s_prev - perm_impact * dt + sigma * s_prev * np.sqrt(dt) * z
+        # M6 price-positivity guard: hybrid SDE can produce negative prices
+        # under extreme sigma (e.g. risk_off sigma=1.17 annualised).
+        s_next = max(s_next, 1e-6)
         price[k + 1] = s_next
 
         # Regime-dependent execution cost

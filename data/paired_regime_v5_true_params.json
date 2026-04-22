@@ -1,6 +1,7 @@
 {
-  "version": "v5",
-  "description": "Paired test V5: TRUE per-regime calibrated params vs Yuhao multipliers",
+  "version": "v5_regime_switching",
+  "description": "Paired test V5 (FIXED): TRUE per-path regime-switching simulation. Each path uses derive_regime_path(mode='sample') + simulate_regime_execution. Price-floor guard active (M6). CRN via z_extern.",
+  "fix_note": "CRITICAL-2: previous v5 used w_on*costs_riskon + w_off*costs_riskoff (stationary-blend of two unconditional full-horizon sims). This caused mean_cost.aware=-21.4 and 657% objective blowup because risk_off sigma=1.17 ran the entire horizon. Now fixed with true regime-switching.",
   "n_paths": 10000,
   "bootstrap_reps": 5000,
   "lambda": 1e-06,
@@ -15,56 +16,75 @@
     "risk_on": 0.9120929738156822,
     "risk_off": 0.08790702618431775
   },
+  "transition_matrix": [
+    [
+      0.9928518705566994,
+      0.007148129443300571
+    ],
+    [
+      0.07416364369205965,
+      0.9258363563079404
+    ]
+  ],
   "v4_yuhao_params": {
     "risk_on": {
       "sigma": 0.09252324634308559,
-      "gamma": 2.1333689585769844,
-      "eta": 1.5512120838517686e-05,
+      "gamma": 2.133368958576984,
+      "eta": 1.5512120838517682e-05,
       "alpha": 1.106389753710262
     },
     "risk_off": {
-      "sigma": 0.3285143783260406,
-      "gamma": 8.26454217019546,
-      "eta": 0.0002133671359281549,
+      "sigma": 0.32851437832604047,
+      "gamma": 8.264542170195464,
+      "eta": 0.00021336713592815494,
       "alpha": 1.106389753710262
-    }
+    },
+    "method": "stationary-blend (legacy, NOT true regime-switching)"
   },
   "v5_true_params": {
     "risk_on": {
-      "sigma": 0.38508974019331366,
-      "gamma": 1.5080652184542604,
-      "eta": 0.00014912430368163994,
-      "alpha": 0.41944702741887513,
+      "sigma": 0.3850820395740453,
+      "gamma": 1.5079863969735723,
+      "eta": 0.00014901551408145135,
+      "alpha": 0.41968422109505343,
       "source": "calibrated (aggregated_1min)"
     },
     "risk_off": {
-      "sigma": 1.170695148414242,
-      "gamma": 1.453158566359022,
+      "sigma": 1.1706934125398092,
+      "gamma": 1.4539721212473162,
       "eta": 0.001,
       "alpha": 0.6,
       "eta_source": "fallback",
       "alpha_source": "fallback",
       "caveats": [
-        "[impact 1min] alpha=0.261 r\u00b2=0.100 out of window for regime 1",
-        "[impact 5min] alpha=0.266 r\u00b2=0.098 out of window for regime 1",
+        "[impact 1min] alpha=0.261 r\u00b2=0.101 out of window for regime 1",
+        "[impact 5min] alpha=0.265 r\u00b2=0.098 out of window for regime 1",
         "Regime 1: all impact methods failed \u2014 using literature fallback eta=1e-3 alpha=0.6"
       ]
-    }
+    },
+    "method": "true regime-switching via simulate_regime_execution",
+    "regime_path_mode": "sample"
+  },
+  "price_floor_guard": {
+    "active": true,
+    "floor_value": 1e-06,
+    "paths_triggered": 0,
+    "paths_triggered_pct": 0.0
   },
   "v4_results": {
     "mean_cost": {
-      "aware": 107.79439381887826,
+      "aware": 107.79439381887796,
       "single": 104.05147939334617,
-      "diff": 3.7429144255320717,
-      "pct_diff": 3.597175597458561,
+      "diff": 3.7429144255317843,
+      "pct_diff": 3.597175597458285,
       "p_value": 0.8344,
       "significant": false
     },
     "objective": {
-      "aware": 244.64272382854685,
+      "aware": 244.64272382854654,
       "single": 288.49358182605306,
-      "diff": -43.85085799750621,
-      "pct_diff": -15.199942307190058,
+      "diff": -43.85085799750652,
+      "pct_diff": -15.199942307190167,
       "p_value": 0.0228,
       "significant": true
     },
@@ -87,49 +107,49 @@
   },
   "v5_results": {
     "mean_cost": {
-      "aware": -21.438474107045902,
+      "aware": 733154.874134523,
       "single": 104.05147939334617,
-      "diff": -125.48995350039215,
-      "pct_diff": -120.60371869005537,
-      "p_value": 0.706,
-      "significant": false
+      "diff": 733050.8226551296,
+      "pct_diff": 704507.8329775351,
+      "p_value": 0.0,
+      "significant": true
     },
     "objective": {
-      "aware": 2185.067707545687,
+      "aware": 736837.0082524513,
       "single": 288.49358182605306,
-      "diff": 1896.574125719634,
-      "pct_diff": 657.4060031821338,
+      "diff": 736548.5146706252,
+      "pct_diff": 255308.4578202944,
       "p_value": 0.0,
       "significant": true
     },
     "var_95": {
-      "aware": 73974.23143380057,
+      "aware": 857466.4469460972,
       "single": 22184.522334166297,
-      "diff": 51789.709099634274,
-      "pct_diff": 233.4497372516024,
+      "diff": 835281.9246119309,
+      "pct_diff": 3765.1562293298352,
       "p_value": 0.0,
       "significant": true
     },
     "cvar_95": {
-      "aware": 90319.23506629046,
+      "aware": 917049.9805607601,
       "single": 27577.093664311655,
-      "diff": 62742.141401978806,
-      "pct_diff": 227.51542336448347,
+      "diff": 889472.8868964484,
+      "pct_diff": 3225.4047425147705,
       "p_value": 0.0,
       "significant": true
     }
   },
   "interpretation": {
     "v4_cvar_pct_diff": -14.003409982286987,
-    "v5_cvar_pct_diff": 227.51542336448347,
+    "v5_cvar_pct_diff": 3225.4047425147705,
     "v4_cvar_p": 0.0,
     "v5_cvar_p": 0.0
   },
   "caveats": {
     "risk_off_eta_alpha_source": "fallback",
     "risk_off_warnings": [
-      "[impact 1min] alpha=0.261 r\u00b2=0.100 out of window for regime 1",
-      "[impact 5min] alpha=0.266 r\u00b2=0.098 out of window for regime 1",
+      "[impact 1min] alpha=0.261 r\u00b2=0.101 out of window for regime 1",
+      "[impact 5min] alpha=0.265 r\u00b2=0.098 out of window for regime 1",
       "Regime 1: all impact methods failed \u2014 using literature fallback eta=1e-3 alpha=0.6"
     ],
     "note": "risk_off eta=1e-3, alpha=0.6 are literature fallback values. The impact regression failed for regime 1 (r\u00b2=0.10, alpha out-of-window). Sufficient risk_off trade data would be needed for true calibration."

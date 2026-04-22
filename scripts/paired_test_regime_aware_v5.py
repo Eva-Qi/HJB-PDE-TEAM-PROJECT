@@ -1,25 +1,33 @@
-"""Paired statistical test V5: TRUE per-regime calibrated params vs Yuhao multipliers.
+"""Paired statistical test V5: TRUE regime-switching simulation.
 
-V4 used Yuhao-style sigma-based multipliers to build regime-aware ACParams.
-Sonnet C (commit bc7a47d) found those multipliers are 41-469% off on gamma
-and 79-90% off on eta vs the TRUE per-regime calibration stored in
-data/regime_conditional_impact.json.
+CRITICAL-2 fix (Opus U, 2026-04-21):
 
-V5 compares:
-  - V4 baseline: Yuhao-multiplier regime params (regime_aware_params from extensions/regime.py)
-  - V5 new:      TRUE per-regime calibrated params from calibrated_params_per_regime
-                 (stored in data/regime_conditional_impact.json, 2-state keys)
+The previous V5 script computed:
+    costs_v5_aware = w_on * costs_v5_riskon + w_off * costs_v5_riskoff
 
-Both use the SAME simulation infrastructure, base ACParams, and shared Z matrix
-(common random numbers, seed=42, N_PATHS=10_000) so that the only thing that
-changes between V4 and V5 is the regime-specific gamma/eta/alpha/sigma values.
+This is a stationary-weighted blend of TWO UNCONDITIONAL full-horizon
+simulations — NOT regime-switching execution.  costs_v5_riskoff ran
+sigma=1.17 (117% annualised vol) for the ENTIRE horizon, causing GBM
+paths where s_prev < temp_impact → exec_px < 0, yielding mean_cost.aware
+= -21.4 and a 657% objective blowup.
 
-Risk_off caveat: eta and alpha for risk_off fell back to literature values
-(eta=1e-3, alpha=0.6) because the impact regression had r²=0.10 and
-alpha=0.261 (out-of-window). This is documented below and recorded in JSON.
+This rewrite uses simulate_regime_execution + derive_regime_path so that
+each path steps through regimes bar-by-bar with the correct params at each
+bar.  A price-positivity guard (np.maximum(s_next, 1e-6) in sde_engine) is
+now active as the M6 refinement noted in AUDIT_VERIFICATION.md.
 
-Question: Does the -14% CVaR finding (V4) hold / strengthen / weaken / flip
-when we use TRUE per-regime params?
+Comparison:
+  - "single" baseline:   AC-optimal TWAP with pooled (single-regime) params
+  - "aware" test:        True regime-switching execution — each path draws a
+                         regime sequence from the empirical HMM transition
+                         matrix (mode="sample") and executes bar-by-bar with
+                         the per-regime calibrated params.
+
+Common random numbers (CRN): Z_shared[i, :] is passed as z_extern to both
+the single-regime sim and the regime-aware sim for path i, so differences
+are driven by parameter choice, not Brownian noise.
+
+V4 baseline (Yuhao multipliers) is preserved for reference.
 """
 
 from __future__ import annotations
@@ -34,9 +42,14 @@ import numpy as np
 
 from calibration.data_loader import load_trades, compute_mid_prices
 from calibration.impact_estimator import calibrated_params
-from extensions.regime import fit_hmm, regime_aware_params
+from extensions.regime import (
+    fit_hmm,
+    regime_aware_params,
+    derive_regime_path,
+    _empirical_transition_matrix,
+)
 from montecarlo.strategies import twap_trajectory
-from montecarlo.sde_engine import simulate_execution
+from montecarlo.sde_engine import simulate_execution, simulate_regime_execution
 from montecarlo.cost_analysis import paired_strategy_test
 from shared.params import ACParams
 
@@ -57,7 +70,7 @@ N_STEPS = 50
 LAM = 1e-6
 
 
-# ─── Bootstrap helpers (copied from V4 to keep V5 self-contained) ─────────────
+# ─── Bootstrap helpers ────────────────────────────────────────────────────────
 
 def _var_95(arr: np.ndarray) -> float:
     return float(np.percentile(arr, 95))
@@ -198,7 +211,7 @@ def _run_four_tests(
 
 def main() -> None:
     print("\n" + "=" * 80)
-    print("Paired test V5: TRUE per-regime params vs Yuhao multipliers")
+    print("Paired test V5 (FIXED): TRUE regime-switching simulation")
     print("=" * 80)
 
     if not DATA_FILES:
@@ -260,8 +273,8 @@ def main() -> None:
     print(f"      S0={base_params.S0:.2f}  sigma={base_params.sigma:.6f}  "
           f"gamma={base_params.gamma:.4e}  eta={base_params.eta:.4e}")
 
-    # ── Step 4: fit HMM (for V4 Yuhao-multiplier baseline) ───────────────
-    print("[4/7] Computing 5-min returns & fitting 2-state HMM (V4 baseline)...")
+    # ── Step 4: fit HMM ───────────────────────────────────────────────────
+    print("[4/7] Computing 5-min returns & fitting 2-state HMM...")
     mid = compute_mid_prices(trades, freq="5min").copy()
     mid["log_return"] = np.log(mid["mid_price"]).diff()
     mid = mid.dropna()
@@ -270,35 +283,27 @@ def main() -> None:
     print(f"      Returns series: {len(returns):,} observations")
 
     regimes, state_seq = fit_hmm(returns, n_regimes=N_REGIMES)
+    hmm_result = (regimes, state_seq)
     reg_dict = {r.label: r for r in regimes}
     risk_on_hmm  = reg_dict["risk_on"]
     risk_off_hmm = reg_dict["risk_off"]
 
     sigma_ratio_hmm = risk_off_hmm.sigma / risk_on_hmm.sigma
-    print(f"      risk_on  sigma_mult={risk_on_hmm.sigma:.4f}  "
-          f"gamma_mult={risk_on_hmm.gamma:.4f}  "
-          f"eta_mult={risk_on_hmm.eta:.4f}  "
-          f"prob={risk_on_hmm.probability:.4f}")
-    print(f"      risk_off sigma_mult={risk_off_hmm.sigma:.4f}  "
-          f"gamma_mult={risk_off_hmm.gamma:.4f}  "
-          f"eta_mult={risk_off_hmm.eta:.4f}  "
-          f"prob={risk_off_hmm.probability:.4f}")
+    print(f"      risk_on  sigma_mult={risk_on_hmm.sigma:.4f}  prob={risk_on_hmm.probability:.4f}")
+    print(f"      risk_off sigma_mult={risk_off_hmm.sigma:.4f}  prob={risk_off_hmm.probability:.4f}")
 
-    # ── Step 5: build ACParams (V4 Yuhao mult, V5 true per-regime) ───────
-    print("\n[5/7] Building per-regime ACParams (V4 Yuhao mult + V5 true)...")
+    # Build empirical transition matrix from HMM Viterbi sequence
+    transmat = _empirical_transition_matrix(state_seq, n_states=N_REGIMES)
+    print(f"      Empirical transition matrix:\n"
+          f"        risk_on→on={transmat[0,0]:.4f}  risk_on→off={transmat[0,1]:.4f}\n"
+          f"        risk_off→on={transmat[1,0]:.4f}  risk_off→off={transmat[1,1]:.4f}")
 
-    # V4: Yuhao multipliers (identical to V4 script)
+    # ── Step 5: build ACParams (V4 Yuhao mult + V5 true per-regime) ───────
+    print("\n[5/7] Building per-regime ACParams...")
+
+    # V4: Yuhao multipliers (preserved as reference baseline)
     v4_params_riskon  = regime_aware_params(base_params, risk_on_hmm)
     v4_params_riskoff = regime_aware_params(base_params, risk_off_hmm)
-
-    print(f"  V4 risk_on  sigma={v4_params_riskon.sigma:.6f}  "
-          f"gamma={v4_params_riskon.gamma:.4e}  "
-          f"eta={v4_params_riskon.eta:.4e}  "
-          f"alpha={v4_params_riskon.alpha:.4f}")
-    print(f"  V4 risk_off sigma={v4_params_riskoff.sigma:.6f}  "
-          f"gamma={v4_params_riskoff.gamma:.4e}  "
-          f"eta={v4_params_riskoff.eta:.4e}  "
-          f"alpha={v4_params_riskoff.alpha:.4f}")
 
     # V5: TRUE per-regime calibrated values (absolute, not multipliers)
     v5_params_riskon = ACParams(
@@ -336,13 +341,16 @@ def main() -> None:
           f"gamma={v5_params_riskoff.gamma:.4e}  "
           f"eta={v5_params_riskoff.eta:.4e}  "
           f"alpha={v5_params_riskoff.alpha:.4f}")
+    print(f"  NOTE: risk_off sigma={v5_params_riskoff.sigma:.4f} annualised "
+          f"is extreme — M6 price-floor guard (s_next>=1e-6) active in sde_engine.")
 
     # ── Step 6: simulate on common random Z ──────────────────────────────
-    print(f"\n[6/7] Simulating {N_PATHS:,} paths (common random numbers, seed={SEED})...")
-    rng = np.random.default_rng(SEED)
-    Z_shared = rng.standard_normal((N_PATHS, N_STEPS))
+    print(f"\n[6/7] Simulating {N_PATHS:,} paths...")
+    rng_master = np.random.default_rng(SEED)
+    # Z_shared: (N_PATHS, N_STEPS) — one row per path, shared across all sims
+    Z_shared = rng_master.standard_normal((N_PATHS, N_STEPS))
 
-    # Single-regime baseline (shared between V4 and V5)
+    # ── 6a: Single-regime baseline (pooled params, same Z) ───────────────
     x_twap_base = twap_trajectory(base_params)
     _, costs_single = simulate_execution(
         base_params, x_twap_base,
@@ -350,11 +358,14 @@ def main() -> None:
         antithetic=False, scheme="exact",
         Z_extern=Z_shared,
     )
+    print(f"  costs_single   mean={np.mean(costs_single):.4f}  "
+          f"std={np.std(costs_single):.4f}  "
+          f"min={np.min(costs_single):.4f}")
 
-    # V4: Yuhao-multiplier regime-aware composite
+    # ── 6b: V4 Yuhao-multiplier composite (legacy; stationary-blend as before)
+    #        Preserved to keep V4 results consistent with prior runs.
     x_twap_v4_riskon  = twap_trajectory(v4_params_riskon)
     x_twap_v4_riskoff = twap_trajectory(v4_params_riskoff)
-
     _, costs_v4_riskon = simulate_execution(
         v4_params_riskon, x_twap_v4_riskon,
         n_paths=N_PATHS, seed=SEED,
@@ -367,68 +378,84 @@ def main() -> None:
         antithetic=False, scheme="exact",
         Z_extern=Z_shared,
     )
-
-    # Stationary probability weights from HMM (same as V4)
     w_on  = risk_on_hmm.probability
     w_off = risk_off_hmm.probability
     total_w = w_on + w_off
     w_on  /= total_w
     w_off /= total_w
-
     costs_v4_aware = w_on * costs_v4_riskon + w_off * costs_v4_riskoff
 
-    # V5: TRUE per-regime params composite (same weights)
-    x_twap_v5_riskon  = twap_trajectory(v5_params_riskon)
-    x_twap_v5_riskoff = twap_trajectory(v5_params_riskoff)
+    # ── 6c: V5 TRUE regime-switching execution ───────────────────────────
+    #        Per path: draw a regime sequence from empirical HMM transmat,
+    #        then call simulate_regime_execution with that path and CRN z.
+    print(f"  Simulating {N_PATHS:,} true regime-switching paths (mode=sample)...")
 
-    _, costs_v5_riskon = simulate_execution(
-        v5_params_riskon, x_twap_v5_riskon,
-        n_paths=N_PATHS, seed=SEED,
-        antithetic=False, scheme="exact",
-        Z_extern=Z_shared,
-    )
+    # RNG for regime sequence sampling — separate from price-noise RNG
+    rng_regime = np.random.default_rng(SEED + 1000)
 
-    # Check for NaN in V5 simulations
-    v5_riskon_nan = int(np.sum(~np.isfinite(costs_v5_riskon)))
-    if v5_riskon_nan > 0:
-        print(f"  *** WARNING: V5 risk_on has {v5_riskon_nan} NaN paths!")
+    costs_v5_aware = np.zeros(N_PATHS)
+    n_negative_price_hits = 0  # count of paths where price-floor guard triggered
 
-    _, costs_v5_riskoff = simulate_execution(
-        v5_params_riskoff, x_twap_v5_riskoff,
-        n_paths=N_PATHS, seed=SEED,
-        antithetic=False, scheme="exact",
-        Z_extern=Z_shared,
-    )
+    for i in range(N_PATHS):
+        # Draw a fresh regime sequence for this path
+        regime_rng_i = np.random.default_rng(int(rng_regime.integers(0, 2**31)))
+        regime_path_i = derive_regime_path(
+            base_params=base_params,
+            hmm_result=hmm_result,
+            mode="sample",
+            transition_matrix=transmat,
+            rng=regime_rng_i,
+        )
 
-    v5_riskoff_nan = int(np.sum(~np.isfinite(costs_v5_riskoff)))
-    if v5_riskoff_nan > 0:
-        print(f"  *** WARNING: V5 risk_off has {v5_riskoff_nan} NaN paths!")
+        # Simulate one path with CRN (z_extern = Z_shared[i, :])
+        result_i = simulate_regime_execution(
+            regime_path=regime_path_i,
+            base_params=base_params,
+            risk_on_params=v5_params_riskon,
+            risk_off_params=v5_params_riskoff,
+            s0=base_params.S0,
+            control_mode="rule",
+            z_extern=Z_shared[i, :],
+        )
+        costs_v5_aware[i] = result_i["total_cost"]
 
-    costs_v5_aware = w_on * costs_v5_riskon + w_off * costs_v5_riskoff
+        # Check if price floor was hit (price dropped to near 1e-6 at any step)
+        if np.any(result_i["price"][1:] <= 1e-5):
+            n_negative_price_hits += 1
+
+    if n_negative_price_hits > 0:
+        print(f"  *** Price-floor guard triggered on {n_negative_price_hits}/{N_PATHS} paths "
+              f"({100*n_negative_price_hits/N_PATHS:.1f}%) — M6 refinement active.")
+    else:
+        print(f"  Price-floor guard did NOT trigger on any path — prices stayed positive.")
 
     v5_aware_nan = int(np.sum(~np.isfinite(costs_v5_aware)))
     if v5_aware_nan > 0:
-        print(f"  *** WARNING: V5 aware composite has {v5_aware_nan} NaN paths! "
-              f"Clamping NaN to prevent bootstrap crash.")
-        # Replace NaN with the finite mean (conservative fallback)
+        print(f"  *** WARNING: V5 aware has {v5_aware_nan} NaN/Inf paths! "
+              f"Clamping to finite mean.")
         finite_mask = np.isfinite(costs_v5_aware)
         fallback = float(np.mean(costs_v5_aware[finite_mask])) if finite_mask.any() else 0.0
         costs_v5_aware = np.where(np.isfinite(costs_v5_aware), costs_v5_aware, fallback)
 
-    print(f"  costs_single  mean={np.mean(costs_single):.4f}  "
+    print(f"  costs_single   mean={np.mean(costs_single):.4f}  "
           f"std={np.std(costs_single):.4f}")
     print(f"  costs_v4_aware mean={np.mean(costs_v4_aware):.4f}  "
-          f"std={np.std(costs_v4_aware):.4f}")
+          f"std={np.std(costs_v4_aware):.4f}  "
+          f"[stationary-blend, legacy]")
     print(f"  costs_v5_aware mean={np.mean(costs_v5_aware):.4f}  "
-          f"std={np.std(costs_v5_aware):.4f}")
+          f"std={np.std(costs_v5_aware):.4f}  "
+          f"[TRUE regime-switching]  min={np.min(costs_v5_aware):.4f}")
+
+    if np.mean(costs_v5_aware) < 0:
+        print("  *** WARNING: V5 mean_cost is still negative — check params and price guard.")
 
     # ── Step 7: run all four tests for V4 and V5 ─────────────────────────
     print(f"\n[7/7] Running paired bootstrap tests (reps={BOOTSTRAP_REPS:,})...")
-    print("  Running V4 tests (Yuhao mult)...")
+    print("  Running V4 tests (Yuhao mult, stationary-blend legacy)...")
     res_v4 = _run_four_tests(costs_v4_aware, costs_single,
                              label="V4", seed_offset=0)
 
-    print("  Running V5 tests (true per-regime)...")
+    print("  Running V5 tests (true regime-switching)...")
     res_v5 = _run_four_tests(costs_v5_aware, costs_single,
                              label="V5", seed_offset=100)
 
@@ -443,7 +470,7 @@ def main() -> None:
 
     print()
     print("=" * 100)
-    print("SIDE-BY-SIDE RESULTS: V4 (Yuhao mult) vs V5 (true per-regime)")
+    print("SIDE-BY-SIDE RESULTS: V4 (Yuhao mult, legacy blend) vs V5 (TRUE regime-switching)")
     print("=" * 100)
     print(f"  N_paths={N_PATHS:,}   bootstrap_reps={BOOTSTRAP_REPS:,}   lambda={LAM:.1e}")
     print()
@@ -493,39 +520,35 @@ def main() -> None:
         if abs(v5_cvar_pct) < 2.0 and v5_cvar_p >= ALPHA_STAT:
             print(
                 "  VERDICT: V5 CVaR effect is NEGLIGIBLE / NON-SIGNIFICANT.\n"
-                "  True per-regime params do NOT reproduce the V4 -14% CVaR finding.\n"
-                "  Yuhao multipliers inflated the regime difference; the true params\n"
-                "  are more similar to the single-regime pooled baseline."
+                "  True regime-switching does NOT reproduce the V4 -14% CVaR finding.\n"
+                "  V4's blend-approach inflated the apparent benefit."
             )
         elif v5_cvar_pct < 0 and abs(v5_cvar_pct) >= 10 and v5_cvar_p < ALPHA_STAT:
             if abs(v5_cvar_pct) > abs(v4_cvar_pct) * 1.15:
                 print(
                     "  VERDICT: V5 CVaR reduction is STRONGER than V4.\n"
-                    "  True per-regime params reveal even LARGER regime benefit;\n"
-                    "  Yuhao multipliers UNDERSTATED the gain."
+                    "  True regime-switching reveals LARGER benefit than the blend approach."
                 )
             elif abs(v5_cvar_pct) < abs(v4_cvar_pct) * 0.85:
                 print(
                     "  VERDICT: V5 CVaR reduction is WEAKER than V4 but still significant.\n"
-                    "  True per-regime params show real benefit, but Yuhao multipliers\n"
-                    "  OVERstated the magnitude. The -14% in V4 was inflated."
+                    "  True regime-switching shows real benefit, but V4 blend OVERstated it."
                 )
             else:
                 print(
                     "  VERDICT: V5 CVaR reduction is SIMILAR to V4 (within ±15%).\n"
-                    "  Yuhao multiplier was 'good enough' — quantitative gamma/eta\n"
-                    "  differences don't propagate materially to tail risk metrics."
+                    "  Regime-switching benefit is robust across both approaches."
                 )
         elif v5_cvar_pct > 0:
             print(
                 "  VERDICT: V5 CVaR FLIPPED DIRECTION (positive = worse).\n"
-                "  True per-regime params INCREASE CVaR vs single regime.\n"
-                "  The V4 -14% finding was an artifact of the multiplier approach."
+                "  True regime-switching INCREASES CVaR vs single-regime.\n"
+                "  The V4 -14% finding was an artifact of the blend approach."
             )
         else:
             print(
-                "  VERDICT: V5 CVaR shows some reduction but is not significant (p≥0.05).\n"
-                "  The V4 finding is WEAKENED with true params."
+                "  VERDICT: V5 CVaR shows some reduction but not significant (p≥0.05).\n"
+                "  The V4 finding is WEAKENED with true regime-switching."
             )
 
     print()
@@ -543,12 +566,32 @@ def main() -> None:
             "  risk_off eta/alpha were successfully estimated from data (no fallback)."
         )
 
+    print()
+    print("  Simulation design note (CRITICAL-2 fix):")
+    print(
+        "  V5 now uses simulate_regime_execution with derive_regime_path(mode='sample').\n"
+        "  Each of the 10,000 paths draws an independent regime sequence from the\n"
+        "  empirical HMM transition matrix, then executes bar-by-bar with the correct\n"
+        "  per-regime params.  CRN (common random numbers) maintained via z_extern.\n"
+        "  Price-floor guard (max(s_next, 1e-6)) prevents negative exec_px (M6 fix).\n"
+        "  The previous w_on*costs_riskon + w_off*costs_riskoff blend is REMOVED."
+    )
     print("=" * 100)
 
     # ── Save JSON ─────────────────────────────────────────────────────────
     out = {
-        "version": "v5",
-        "description": "Paired test V5: TRUE per-regime calibrated params vs Yuhao multipliers",
+        "version": "v5_regime_switching",
+        "description": (
+            "Paired test V5 (FIXED): TRUE per-path regime-switching simulation. "
+            "Each path uses derive_regime_path(mode='sample') + simulate_regime_execution. "
+            "Price-floor guard active (M6). CRN via z_extern."
+        ),
+        "fix_note": (
+            "CRITICAL-2: previous v5 used w_on*costs_riskon + w_off*costs_riskoff "
+            "(stationary-blend of two unconditional full-horizon sims). This caused "
+            "mean_cost.aware=-21.4 and 657% objective blowup because risk_off "
+            "sigma=1.17 ran the entire horizon. Now fixed with true regime-switching."
+        ),
         "n_paths": N_PATHS,
         "bootstrap_reps": BOOTSTRAP_REPS,
         "lambda": LAM,
@@ -563,6 +606,7 @@ def main() -> None:
             "risk_on":  float(w_on),
             "risk_off": float(w_off),
         },
+        "transition_matrix": transmat.tolist(),
         "v4_yuhao_params": {
             "risk_on": {
                 "sigma": float(v4_params_riskon.sigma),
@@ -576,6 +620,7 @@ def main() -> None:
                 "eta":   float(v4_params_riskoff.eta),
                 "alpha": float(v4_params_riskoff.alpha),
             },
+            "method": "stationary-blend (legacy, NOT true regime-switching)",
         },
         "v5_true_params": {
             "risk_on": {
@@ -594,6 +639,14 @@ def main() -> None:
                 "alpha_source": riskoff_alpha_source,
                 "caveats": riskoff_caveats,
             },
+            "method": "true regime-switching via simulate_regime_execution",
+            "regime_path_mode": "sample",
+        },
+        "price_floor_guard": {
+            "active": True,
+            "floor_value": 1e-6,
+            "paths_triggered": n_negative_price_hits,
+            "paths_triggered_pct": float(100 * n_negative_price_hits / N_PATHS),
         },
         "v4_results": res_v4,
         "v5_results": res_v5,

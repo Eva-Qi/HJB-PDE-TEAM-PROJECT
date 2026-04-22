@@ -22,7 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from shared.params import DEFAULT_PARAMS
 from extensions.regime import regime_aware_params, RegimeParams
-from montecarlo.sde_engine import simulate_regime_execution
+from montecarlo.sde_engine import simulate_regime_execution, _regime_params_from_label
 
 
 def _make_regime_params():
@@ -231,3 +231,32 @@ class TestRegimeConditionalMC:
                 "regime params should be dimensionless multipliers, not "
                 "sigma*1e-8 magic constants."
             )
+
+
+class TestRegimeLabelGuard:
+    """T5-3 / AUDIT_VERIFICATION N-3: out-of-range regime labels must
+    raise rather than silently aliasing to risk_off."""
+
+    def _params(self):
+        risk_on_regime, risk_off_regime = _make_regime_params()
+        on = regime_aware_params(DEFAULT_PARAMS, risk_on_regime)
+        off = regime_aware_params(DEFAULT_PARAMS, risk_off_regime)
+        return on, off
+
+    def test_label_0_returns_risk_on(self):
+        on, off = self._params()
+        assert _regime_params_from_label(0, on, off) is on
+
+    def test_label_1_returns_risk_off(self):
+        on, off = self._params()
+        assert _regime_params_from_label(1, on, off) is off
+
+    def test_label_2_raises(self):
+        on, off = self._params()
+        with pytest.raises(ValueError, match=r"regime_label=2"):
+            _regime_params_from_label(2, on, off)
+
+    def test_negative_label_raises(self):
+        on, off = self._params()
+        with pytest.raises(ValueError, match=r"regime_label=-1"):
+            _regime_params_from_label(-1, on, off)
