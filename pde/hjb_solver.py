@@ -196,7 +196,7 @@ def _solve_hjb_fd(
         """
         v_opt = np.zeros_like(Vx)
         pos = Vx > 0
-        v_opt[pos] = (Vx[pos] / (eta * (ap + 1.0))) ** (1.0 / ap)
+        v_opt[pos] = (np.maximum(Vx[pos] - params.gamma * (params.X0 - x_arr[pos]), 1e-30) / (eta * (ap + 1.0))) ** (1.0 / ap)
         # Cap at x/dt — cannot sell more than remaining inventory per step
         v_max = np.maximum(x_arr / dt, 0.0)
         v_opt = np.minimum(v_opt, v_max)
@@ -232,7 +232,7 @@ def _solve_hjb_fd(
         for j in range(N - 1, -1, -1):
             # Policy and source at time step j (interior points 1..M)
             v_j = v_star[1:M + 1, j]  # shape (M,)
-            src_j = eta * np.abs(v_j) ** (ap + 1.0) + lam * params.S0**2 * sigma**2 * x[1:M + 1]**2
+            src_j = eta * np.abs(v_j) ** (ap + 1.0) + params.gamma * v_j * (params.X0 - x[1:M + 1]) + lam * params.S0**2 * sigma**2 * x[1:M + 1]**2
 
             # Courant numbers (always >= 0)
             c = dt * v_j / dx  # shape (M,)
