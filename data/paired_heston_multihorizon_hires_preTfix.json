@@ -1,0 +1,59 @@
+{
+  "version": "heston_hires_v1",
+  "n_paths": 100000,
+  "bootstrap_reps": 5000,
+  "lambda": 1e-06,
+  "seed": 42,
+  "sigma_base": 0.478090273974002,
+  "q_params": {
+    "kappa": 9.087194053706838,
+    "theta": 0.22857031006853631,
+    "xi": 2.0360698675551396,
+    "rho": -0.3853407655187551,
+    "v0": 0.1617087056856548,
+    "feller_lhs": 4.154125525017463,
+    "feller_rhs": 4.145580505566004,
+    "feller_satisfied": true
+  },
+  "variance_collapse_check": {
+    "negative_fraction": 0.0014115686274509805,
+    "near_zero_fraction": 0.0014915686274509805
+  },
+  "summary_means": {
+    "const_vol": -121.14854532064315,
+    "heston_Q": -97.77020460826036
+  },
+  "results": {
+    "mean_cost": {
+      "const_vol": -121.14854532064315,
+      "heston_Q": -97.77020460826036,
+      "diff": -23.378340712382794,
+      "p_value_bootstrap": 0.47,
+      "t_statistic": -0.7202198195061398,
+      "t_pvalue": 0.4713913462460416,
+      "significant": false
+    },
+    "objective": {
+      "const_vol": 1341.6156888299322,
+      "heston_Q": 953.7043909770324,
+      "diff": 387.9112978528998,
+      "p_value": 0.0,
+      "significant": true
+    },
+    "var_95": {
+      "const_vol": 60611.32801690484,
+      "heston_Q": 55073.68938040657,
+      "diff": 5537.638636498268,
+      "p_value": 0.0,
+      "significant": true
+    },
+    "cvar_95": {
+      "const_vol": 74575.35783931526,
+      "heston_Q": 71001.47754866627,
+      "diff": 3573.8802906489873,
+      "pct_reduction": 4.792307263680174,
+      "p_value": 0.0,
+      "significant": true
+    }
+  }
+}

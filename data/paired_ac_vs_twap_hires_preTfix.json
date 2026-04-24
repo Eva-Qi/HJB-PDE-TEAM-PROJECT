@@ -1,0 +1,192 @@
+{
+  "metadata": {
+    "description": "Hi-res AC vs TWAP (100k paths X0 sweep + multi-horizon 10k)",
+    "seed": 42
+  },
+  "x0_sweep_100k": [
+    {
+      "X0": 1.0,
+      "n_paths": 100000,
+      "mean_cost_twap": -15.422045937633985,
+      "mean_cost_ac": 1.6438473289980944,
+      "mean_diff_ac_minus_twap": 17.065893266632084,
+      "t_statistic": 1.723018533681096,
+      "t_pvalue": 0.08488826499202332,
+      "bootstrap_pvalue": 0.0944,
+      "significant_at_0.05": false,
+      "det_obj_twap": 63.16160763159999,
+      "det_obj_ac": 52.73345435658195
+    },
+    {
+      "X0": 10.0,
+      "n_paths": 100000,
+      "mean_cost_twap": -88.5987145790945,
+      "mean_cost_ac": 47.4181080745616,
+      "mean_diff_ac_minus_twap": 136.0168226536561,
+      "t_statistic": 1.373326602041695,
+      "t_pvalue": 0.1696539152048753,
+      "bootstrap_pvalue": 0.175,
+      "significant_at_0.05": false,
+      "det_obj_twap": 1658.66076316,
+      "det_obj_ac": 615.8454356581955
+    },
+    {
+      "X0": 100.0,
+      "n_paths": 100000,
+      "mean_cost_twap": 5676.187333774661,
+      "mean_cost_ac": 3572.14455920224,
+      "mean_diff_ac_minus_twap": -2104.0427745724205,
+      "t_statistic": -2.125389954784034,
+      "t_pvalue": 0.033556531977990134,
+      "bootstrap_pvalue": 0.0374,
+      "significant_at_0.05": true,
+      "det_obj_twap": 119291.07631599999,
+      "det_obj_ac": 15009.543565819547
+    },
+    {
+      "X0": 1000.0,
+      "n_paths": 100000,
+      "mean_cost_twap": 712979.3212934532,
+      "mean_cost_ac": 345517.7934376886,
+      "mean_diff_ac_minus_twap": -367461.52785576467,
+      "t_statistic": -37.29291540211805,
+      "t_pvalue": 2.5928034438017716e-302,
+      "bootstrap_pvalue": 0.0,
+      "significant_at_0.05": true,
+      "det_obj_twap": 11463357.6316,
+      "det_obj_ac": 1035204.3565819545
+    },
+    {
+      "X0": 10000.0,
+      "n_paths": 100000,
+      "mean_cost_twap": 72751538.00850606,
+      "mean_cost_ac": 34434812.71894346,
+      "mean_diff_ac_minus_twap": -38316725.28956259,
+      "t_statistic": -407.6399385117953,
+      "t_pvalue": 0.0,
+      "bootstrap_pvalue": 0.0,
+      "significant_at_0.05": true,
+      "det_obj_twap": 1141678263.1599998,
+      "det_obj_ac": 98862935.65819545
+    }
+  ],
+  "multi_horizon_10k": [
+    {
+      "T_label": "1h",
+      "T": 0.041666666666666664,
+      "metric": "mean_cost",
+      "val_ac": 57.58277662266395,
+      "val_twap": 8.916757661114563,
+      "diff_ac_minus_twap": 48.66601896154938,
+      "t_pvalue": 0.8769995520269038,
+      "bootstrap_pvalue": 0.8686,
+      "significant_at_0.05": false,
+      "ac_degenerate": false,
+      "note": ""
+    },
+    {
+      "T_label": "1h",
+      "T": 0.041666666666666664,
+      "metric": "objective",
+      "val_ac": 59.26151768831251,
+      "val_twap": 1019.3883192035911,
+      "diff_ac_minus_twap": -960.1268015152785,
+      "t_pvalue": null,
+      "bootstrap_pvalue": 0.0018,
+      "significant_at_0.05": true,
+      "ac_degenerate": false,
+      "note": ""
+    },
+    {
+      "T_label": "1h",
+      "T": 0.041666666666666664,
+      "metric": "cvar_95",
+      "val_ac": 2743.4959803236648,
+      "val_twap": 62337.16011448378,
+      "diff_ac_minus_twap": -59593.66413416011,
+      "t_pvalue": null,
+      "bootstrap_pvalue": 0.0,
+      "significant_at_0.05": true,
+      "ac_degenerate": false,
+      "note": ""
+    },
+    {
+      "T_label": "6h",
+      "T": 0.25,
+      "metric": "mean_cost",
+      "val_ac": 7.5792158513239904,
+      "val_twap": 296.97233577029965,
+      "diff_ac_minus_twap": -289.3931199189757,
+      "t_pvalue": 0.7113377907810936,
+      "bootstrap_pvalue": 0.7072,
+      "significant_at_0.05": false,
+      "ac_degenerate": false,
+      "note": ""
+    },
+    {
+      "T_label": "6h",
+      "T": 0.25,
+      "metric": "objective",
+      "val_ac": 7.5826937476801035,
+      "val_twap": 6413.033268744932,
+      "diff_ac_minus_twap": -6405.450574997251,
+      "t_pvalue": null,
+      "bootstrap_pvalue": 0.0,
+      "significant_at_0.05": true,
+      "ac_degenerate": false,
+      "note": ""
+    },
+    {
+      "T_label": "6h",
+      "T": 0.25,
+      "metric": "cvar_95",
+      "val_ac": 129.57695055888558,
+      "val_twap": 142395.93317905779,
+      "diff_ac_minus_twap": -142266.3562284989,
+      "t_pvalue": null,
+      "bootstrap_pvalue": 0.0,
+      "significant_at_0.05": true,
+      "ac_degenerate": false,
+      "note": ""
+    },
+    {
+      "T_label": "1d",
+      "T": 1.0,
+      "metric": "mean_cost",
+      "val_ac": 3.9500000000000006,
+      "val_twap": -1156.976583039204,
+      "diff_ac_minus_twap": 1160.926583039204,
+      "t_pvalue": 0.4744381202289747,
+      "bootstrap_pvalue": 0.4702,
+      "significant_at_0.05": false,
+      "ac_degenerate": true,
+      "note": "AC optimal degenerate: kappa*T overflow (bang-bang limit). Results reflect AC=immediate execution vs TWAP."
+    },
+    {
+      "T_label": "1d",
+      "T": 1.0,
+      "metric": "objective",
+      "val_ac": 3.9500000000000006,
+      "val_twap": 25181.167462633075,
+      "diff_ac_minus_twap": -25177.217462633074,
+      "t_pvalue": null,
+      "bootstrap_pvalue": 0.0,
+      "significant_at_0.05": true,
+      "ac_degenerate": true,
+      "note": "AC optimal degenerate: kappa*T overflow (bang-bang limit). Results reflect AC=immediate execution vs TWAP."
+    },
+    {
+      "T_label": "1d",
+      "T": 1.0,
+      "metric": "cvar_95",
+      "val_ac": 3.9500000000000006,
+      "val_twap": 255675.79073968597,
+      "diff_ac_minus_twap": -255671.84073968595,
+      "t_pvalue": null,
+      "bootstrap_pvalue": 0.0,
+      "significant_at_0.05": true,
+      "ac_degenerate": true,
+      "note": "AC optimal degenerate: kappa*T overflow (bang-bang limit). Results reflect AC=immediate execution vs TWAP."
+    }
+  ]
+}

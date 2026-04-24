@@ -1,0 +1,51 @@
+{
+  "version": "v4",
+  "n_paths": 10000,
+  "bootstrap_reps": 5000,
+  "lambda": 1e-06,
+  "regime_sigmas": {
+    "risk_on": 0.7036077257753593,
+    "risk_off": 2.4982397803183574,
+    "ratio": 3.5506144813366785
+  },
+  "stationary_probs": {
+    "risk_on": 0.9120929738156822,
+    "risk_off": 0.08790702618431775
+  },
+  "results": {
+    "mean_cost": {
+      "aware": 107.79439381887826,
+      "single": 104.05147939334617,
+      "diff": 3.7429144255320717,
+      "p_value": 0.8344,
+      "significant": false,
+      "t_statistic": 0.19877289372764276,
+      "t_pvalue": 0.8424444418719541
+    },
+    "objective": {
+      "aware": 244.64272382854685,
+      "single": 288.49358182605306,
+      "diff": -43.85085799750621,
+      "p_value": 0.0228,
+      "significant": true
+    },
+    "var_95": {
+      "aware": 19098.556022609468,
+      "single": 22184.522334166297,
+      "diff": -3085.966311556829,
+      "p_value": 0.0,
+      "significant": true
+    },
+    "cvar_95": {
+      "aware": 23715.360177298804,
+      "single": 27577.093664311655,
+      "diff": -3861.7334870128507,
+      "p_value": 0.0,
+      "significant": true
+    }
+  },
+  "weights_used": {
+    "risk_on": 0.9120929738156822,
+    "risk_off": 0.08790702618431775
+  }
+}

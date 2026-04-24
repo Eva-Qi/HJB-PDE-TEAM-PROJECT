@@ -2,18 +2,18 @@
 
 Context
 -------
-We have ``data/coinmetrics_btc_extended_metrics.json`` that was pulled but never
-loaded into any model. The task brief hypothesised exchange inflow/outflow,
-but those fields are NOT in this file — they live in
-``coinmetrics_btc_onchain.json`` and were already wired into
-``scripts/bivariate_hmm_coinmetrics.py``. The extended file actually contains:
+Default input: ``data/coinmetrics_btc_extended_metrics_v2.json`` (1088 days,
+2023-05-01 → 2026-04-22).  Pass ``--input <path>`` to override (backward compat
+with the original 98-day file ``data/coinmetrics_btc_extended_metrics.json``).
 
-    ['AdrActCnt', 'TxCnt', 'CapMrktCurUSD', 'CapMVRVCur', 'HashRate',
-     'ReferenceRateUSD']
+v2 file contains: AdrActCnt, TxCnt, TxTfrCnt, HashRate, CapMVRVCur,
+FlowOutExNtv, FlowInExNtv, ReferenceRateUSD (6/1088 non-null → excluded).
+Failed metrics (HTTP 403): TxTfrValAdjUSD, FeeMeanNtv, FeeMeanUSD, DiffMean,
+NVTAdj, CapRealUSD, SplyAct1yr, SplyFF, FlowOutBFXNtv, FlowInBFXNtv.
 
-plus 5 fields that came back HTTP 403 (``TxTfrValAdjUSD``, ``VtyDayRet30d``,
-``FeeMeanUSD``, ``CapRealUSD``, ``NVTAdj``). ``ReferenceRateUSD`` has only
-7/296 non-null rows → excluded. That leaves 5 live candidates.
+v1 file contained: AdrActCnt, TxCnt, CapMrktCurUSD, CapMVRVCur, HashRate,
+ReferenceRateUSD; failed (HTTP 403): TxTfrValAdjUSD, VtyDayRet30d,
+FeeMeanUSD, CapRealUSD, NVTAdj.
 
 Procedure
 ---------
@@ -33,17 +33,24 @@ Procedure
    (log_return + log(FlowInExUSD), same window) with the SAME hmmlearn call.
    (The existing results JSON never recorded AIC/BIC, so there is nothing to
    directly read off of disk.)
-6. Save everything to ``data/hmm_coinmetrics_extended_results.json``.
+6. Save to ``data/hmm_coinmetrics_extended_v2_results.json`` (v2 default) or
+   ``data/hmm_coinmetrics_extended_results.json`` (v1 / --input override).
 
 Hard rules
 ----------
 - No modification of existing scripts / existing results.
 - No imputation: rows with NaN in the candidate feature are dropped.
 - If a field is missing/empty we say so and skip it.
+
+CLI usage
+---------
+    python scripts/hmm_coinmetrics_extended.py                    # v2 default
+    python scripts/hmm_coinmetrics_extended.py --input data/coinmetrics_btc_extended_metrics.json
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -67,13 +74,15 @@ N_REGIMES = 2
 N_INIT = 5                       # same as extensions.regime._fit_hmm_hmmlearn_multifeature
 SEED = 0
 
-# ReferenceRateUSD has only 7/296 non-null values → drop it outright
+# ReferenceRateUSD has <1% coverage in v2 (6/1088) and <3% in v1 (7/296) → drop
 LOW_COVERAGE = {"ReferenceRateUSD"}
 
-# Metrics that came back HTTP 403 from CoinMetrics community tier
-FAILED_METRICS_NOTE = [
-    "TxTfrValAdjUSD", "VtyDayRet30d", "FeeMeanUSD", "CapRealUSD", "NVTAdj",
-]
+# Default paths
+_V2_INPUT = Path("data") / "coinmetrics_btc_extended_metrics_v2.json"
+_V1_INPUT = Path("data") / "coinmetrics_btc_extended_metrics.json"
+
+# Coverage threshold below which a metric is excluded
+MIN_COVERAGE_FRAC = 0.10
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -229,33 +238,88 @@ def summarize_hmm(
 # Main
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="HMM feature screening — CoinMetrics extended metrics"
+    )
+    parser.add_argument(
+        "--input", "-i",
+        type=str,
+        default=None,
+        help=(
+            "Path to CoinMetrics extended JSON (absolute or relative to project root). "
+            f"Defaults to {_V2_INPUT} (1088-day v2 file). "
+            "Pass the original 98-day file for backward compat: "
+            f"{_V1_INPUT}"
+        ),
+    )
+    return parser.parse_args()
+
+
+def _resolve_paths(input_arg: str | None) -> tuple[Path, Path]:
+    """Return (ext_path, out_path) based on --input flag.
+
+    v2 default  → output: hmm_coinmetrics_extended_v2_results.json
+    v1 / custom → output: hmm_coinmetrics_extended_results.json  (original name)
+    """
+    if input_arg is None:
+        ext_path = PROJECT / _V2_INPUT
+        out_path = PROJECT / "data" / "hmm_coinmetrics_extended_v2_results.json"
+    else:
+        ext_path = Path(input_arg)
+        if not ext_path.is_absolute():
+            ext_path = PROJECT / ext_path
+        # Keep original output name when using the v1 file; otherwise add _custom suffix
+        if ext_path.name == _V1_INPUT.name:
+            out_path = PROJECT / "data" / "hmm_coinmetrics_extended_results.json"
+        else:
+            stem = ext_path.stem
+            out_path = PROJECT / "data" / f"hmm_{stem}_results.json"
+    return ext_path, out_path
+
+
 def main() -> None:
+    args = _parse_args()
+    ext_path, out_path = _resolve_paths(args.input)
+
     print("=" * 80)
     print("HMM feature screening — CoinMetrics extended metrics")
     print("=" * 80)
 
     # ── 1. Load extended metrics ─────────────────────────────────────────
-    ext_path = PROJECT / "data" / "coinmetrics_btc_extended_metrics.json"
     with open(ext_path) as f:
         payload = json.load(f)
     print(f"\n[1/6] Loaded {ext_path.name}")
     print(f"      covers {payload['start']} → {payload['end']}")
-    print(f"      retrieved: {payload['metrics_retrieved']}")
-    print(f"      failed (HTTP 403, unavailable on community tier): "
-          f"{list(payload['metrics_failed'].keys())}")
+
+    # v2 uses 'metrics_succeeded'; v1 uses 'metrics_retrieved'.
+    # We derive the candidate list directly from the data frame to handle both.
+    failed_metrics = list(payload.get("metrics_failed", {}).keys())
+    retrieved_metrics = list(payload.get(
+        "metrics_retrieved",
+        payload.get("metrics_succeeded", {}),
+    ))
+    if isinstance(retrieved_metrics, dict):
+        retrieved_metrics = list(retrieved_metrics.keys())
+
+    print(f"      retrieved: {retrieved_metrics}")
+    print(f"      failed (unavailable on community tier): {failed_metrics}")
 
     ext = pd.DataFrame(payload["data"])
     ext["date"] = pd.to_datetime(ext["date"])
     ext = ext.sort_values("date").reset_index(drop=True)
 
-    candidate_cols = [
-        c for c in payload["metrics_retrieved"]
-        if c not in LOW_COVERAGE and c in ext.columns
-    ]
-    dropped_low_cov = [
-        c for c in payload["metrics_retrieved"]
-        if c in LOW_COVERAGE
-    ]
+    # Drop hard-coded low-coverage names, then also drop any column with <10% non-null
+    metric_cols = [c for c in ext.columns if c != "date"]
+    dropped_low_cov: list[str] = []
+    candidate_cols: list[str] = []
+    for c in metric_cols:
+        frac_nn = ext[c].notna().mean()
+        if c in LOW_COVERAGE or frac_nn < MIN_COVERAGE_FRAC:
+            dropped_low_cov.append(c)
+        else:
+            candidate_cols.append(c)
+
     print(f"      dropped (low coverage, <10% non-null): {dropped_low_cov}")
     print(f"      candidates to screen: {candidate_cols}")
 
@@ -494,7 +558,7 @@ def main() -> None:
         "experiment": "hmm_coinmetrics_extended_feature_screening",
         "window": {"start": WINDOW_START, "end": WINDOW_END},
         "extended_metrics_file": str(ext_path.name),
-        "metrics_unavailable_http_403": FAILED_METRICS_NOTE,
+        "metrics_unavailable": failed_metrics,
         "metrics_dropped_low_coverage": sorted(dropped_low_cov),
         "candidate_features": candidate_cols,
         "screening_table": screen_df.to_dict(orient="records"),
@@ -529,24 +593,20 @@ def main() -> None:
         },
         "regime_alignment_sanity": regime_alignment,
         "caveats": [
-            "Task brief mentioned exchange flows, but the extended metrics "
-            "file does not contain FlowInExUSD/FlowOutExUSD — those are in "
-            "coinmetrics_btc_onchain.json and were already wired by "
-            "scripts/bivariate_hmm_coinmetrics.py.",
-            "5 requested fields (TxTfrValAdjUSD, VtyDayRet30d, FeeMeanUSD, "
-            "CapRealUSD, NVTAdj) returned HTTP 403 and are unavailable on the "
-            "community-tier CoinMetrics endpoint — so MVRV is the only classic "
-            "valuation regime signal we can actually test.",
+            "v2 file (1088 days) adds TxTfrCnt, FlowOutExNtv, FlowInExNtv vs v1. "
+            "FlowInExNtv/FlowOutExNtv are native-unit flows (BTC), not USD — "
+            "distinct from FlowInExUSD used in the bivariate baseline.",
+            "ReferenceRateUSD dropped: only 6/1088 rows non-null (<1% coverage).",
+            "10 fields returned HTTP 403 on community tier (see metrics_unavailable).",
             "Daily on-chain features are forward-filled to 5-min bars. Prior "
             "work (F&G, FlowIn) shows this mismatch compresses HMM regime "
             "spread; the same caveat applies here.",
         ],
     }
 
-    out = PROJECT / "data" / "hmm_coinmetrics_extended_results.json"
-    with open(out, "w") as f:
+    with open(out_path, "w") as f:
         json.dump(results, f, indent=2, default=float)
-    print(f"\nSaved: {out}")
+    print(f"\nSaved: {out_path}")
 
 
 if __name__ == "__main__":
