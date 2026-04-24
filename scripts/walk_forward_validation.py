@@ -268,40 +268,91 @@ def build_params(cal: dict, sigma_override: float | None = None,
     )
 
 
-def compute_optimal_trajectory(params: ACParams) -> tuple[np.ndarray, str, str | None]:
+def compute_optimal_trajectory(
+    params: ACParams,
+    nonlinear_method: str = "hjb",
+) -> tuple[np.ndarray, str, str | None]:
     """Compute the AC optimal inventory trajectory.
 
-    Uses closed-form when alpha is very close to 1 (|alpha-1| < 0.01); otherwise
-    solves the HJB PDE via policy iteration (Howard's algorithm). Raising a
-    ``ValueError`` from the closed-form path falls through to the PDE solver.
+    Uses closed-form when alpha is very close to 1 (|alpha-1| < 0.01). For
+    alpha != 1, selects between HJB PDE (default, may produce bang-bang)
+    and SLSQP direct optimization (more reliable when Hamiltonian is
+    sublinear in v).
+
+    Parameters
+    ----------
+    params : ACParams
+    nonlinear_method : str
+        "hjb" (default) or "slsqp". Only used when |alpha-1| >= 0.01.
 
     Returns
     -------
     x_opt : np.ndarray, shape (N+1,)
         Optimal inventory trajectory.
     method : str
-        "closed_form" or "hjb_pde".
+        "closed_form" (alpha=1), "hjb_pde" (alpha!=1, HJB path), or
+        "slsqp" (alpha!=1, direct optimisation).
     note : str | None
-        Optional diagnostic (e.g., convergence warning) — currently always None
-        but reserved for future use.
     """
-    # Keep the cheap path when alpha is effectively 1 (back-compat & speed)
     if abs(params.alpha - 1.0) < 0.01:
         _, x_opt, _ = almgren_chriss_closed_form(params)
         return x_opt, "closed_form", None
 
-    # Non-linear impact: HJB PDE solver handles arbitrary alpha
-    try:
-        grid, _V, v_star = solve_hjb(params, M=200)
-        x_opt = extract_optimal_trajectory(grid, v_star, params)
-    except ValueError:
-        # Fallback: if the closed-form path is accidentally reached (|alpha-1|<1e-10
-        # but not <0.01) we'd hit this; treat as bug and re-raise.
-        raise
+    if nonlinear_method == "slsqp":
+        return _slsqp_optimal_trajectory(params), "slsqp", None
 
-    # Validate monotonicity and boundary conditions
-    # (x[0] == X0 by construction in extract_optimal_trajectory; x[-1] should be ~0)
+    # Default: HJB PDE path. At alpha < 1 this can produce bang-bang
+    # trajectories (insufficient convexity); use --slsqp for a more
+    # reliable direct-optimisation alternative.
+    grid, _V, v_star = solve_hjb(params, M=200)
+    x_opt = extract_optimal_trajectory(grid, v_star, params)
     return x_opt, "hjb_pde", None
+
+
+def _slsqp_optimal_trajectory(params: ACParams) -> np.ndarray:
+    """SLSQP direct-optimisation trajectory (bypasses PDE).
+
+    Minimises execution_cost + lam * execution_risk subject to
+      - all trades non-negative
+      - sum of trades == X0 (fully liquidate)
+    Returns inventory trajectory x[0]=X0, x[N]=0.
+
+    Motivation: HJB PDE produces bang-bang for alpha < 1 regardless of N
+    or M refinement (insufficient convexity of the Hamiltonian). SLSQP
+    solves the discrete optimisation directly and recovers smooth paths.
+    """
+    from scipy.optimize import minimize
+
+    N = params.N
+    X0 = params.X0
+
+    def objective(trades):
+        x = np.concatenate([[X0], X0 - np.cumsum(trades)])
+        return execution_cost(x, params) + params.lam * ((
+            # risk = sigma^2 * S0^2 * sum(x_k^2) * dt  (matches execution_risk convention)
+            params.sigma ** 2 * params.S0 ** 2 * np.sum(x[1:] ** 2) * params.dt
+        ))
+
+    x0_trades = np.full(N, X0 / N)
+    cons = {"type": "eq", "fun": lambda t: np.sum(t) - X0}
+    bnds = [(0.0, X0)] * N
+
+    res = minimize(
+        objective,
+        x0_trades,
+        method="SLSQP",
+        bounds=bnds,
+        constraints=cons,
+        options={"maxiter": 1000, "ftol": 1e-12},
+    )
+    if not res.success:
+        import warnings
+        warnings.warn(f"SLSQP did not converge: {res.message}")
+
+    x_opt = np.concatenate([[X0], X0 - np.cumsum(res.x)])
+    x_opt = np.clip(x_opt, 0.0, X0)
+    x_opt[-1] = 0.0
+    return x_opt
 
 
 # ── per-split logic ──────────────────────────────────────────────────────────
@@ -369,7 +420,9 @@ def run_split(label: str, train_start: str, train_end: str,
     method_note = None
     try:
         x_twap = twap_trajectory(train_params)
-        x_opt, method, method_note = compute_optimal_trajectory(train_params)
+        x_opt, method, method_note = compute_optimal_trajectory(
+            train_params, nonlinear_method=NONLINEAR_METHOD
+        )
         print(f"  AC trajectory method: {method}  (alpha={train_params.alpha:.3f})")
 
         # Sanity checks on the trajectory
@@ -570,9 +623,28 @@ def plot_results(results: list[dict], out_path: str) -> None:
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
+NONLINEAR_METHOD = "hjb"   # module-level, overridden by --slsqp flag
+
+
 def main() -> None:
+    import argparse
+    ap = argparse.ArgumentParser(description="Walk-forward OOS validation")
+    ap.add_argument(
+        "--slsqp",
+        action="store_true",
+        help="Use SLSQP direct optimisation for alpha != 1 "
+             "(default: HJB PDE). HJB PDE produces bang-bang at alpha<1; "
+             "SLSQP gives smooth solutions.",
+    )
+    args = ap.parse_args()
+
+    global NONLINEAR_METHOD
+    NONLINEAR_METHOD = "slsqp" if args.slsqp else "hjb"
+    suffix = "_slsqp" if args.slsqp else ""
+
     print("MF796 Walk-Forward OOS Validation")
-    print(f"X0={X0} BTC | T=1h | N={N_STEPS} | lam={LAM:.0e} | n_paths={N_PATHS}")
+    print(f"X0={X0} BTC | T=1h | N={N_STEPS} | lam={LAM:.0e} | n_paths={N_PATHS}"
+          f" | nonlinear_method={NONLINEAR_METHOD}")
 
     results = []
     for label, tr_s, tr_e, te_s, te_e in SPLITS:
@@ -588,12 +660,12 @@ def main() -> None:
 
     print_table(results)
 
-    out_json = PROJECT_ROOT / "data" / "walk_forward_results.json"
+    out_json = PROJECT_ROOT / "data" / f"walk_forward_results{suffix}.json"
     with open(out_json, "w") as f:
         json.dump(results, f, indent=2, default=str)
     print(f"Results saved → {out_json}")
 
-    plot_results(results, str(PROJECT_ROOT / "plot_walk_forward.png"))
+    plot_results(results, str(PROJECT_ROOT / f"plot_walk_forward{suffix}.png"))
 
 
 if __name__ == "__main__":
