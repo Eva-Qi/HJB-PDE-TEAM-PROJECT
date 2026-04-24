@@ -53,6 +53,61 @@ from montecarlo.sde_engine import simulate_execution, simulate_regime_execution
 from montecarlo.cost_analysis import paired_strategy_test
 from shared.params import ACParams
 
+try:
+    from hmmlearn.hmm import GaussianHMM as _GaussianHMM
+    _HAS_HMMLEARN = True
+except ImportError:  # pragma: no cover
+    _HAS_HMMLEARN = False
+
+
+# ─── Filtered (causal) HMM decoding ───────────────────────────────────────────
+# Address G look-ahead bias from statistical audit: fit_hmm() returns Viterbi
+# path which uses forward-backward smoothing. Replace with expanding-window
+# filtered decoding that only sees past observations at each t.
+USE_FILTERED_HMM = True  # set False to revert to Viterbi (original behavior)
+FILTERED_STRIDE  = 14    # evaluate every Nth point; carry forward in between
+
+
+def _filtered_state_sequence(returns: np.ndarray,
+                             n_regimes: int = 2,
+                             stride: int = 14,
+                             seed: int = 42) -> np.ndarray:
+    """Expanding-window filtered HMM state sequence.
+
+    At each time t, fit/use an HMM on X[:t] and take argmax of last-time
+    posterior as the state. Uses public predict_proba only — no private API.
+
+    `stride` reduces O(n^2) cost: evaluate every stride points, carry
+    forward label. For n~30k at stride=14, ~2000 evaluations ≈ 1-2 min.
+    """
+    if not _HAS_HMMLEARN:
+        raise RuntimeError("filtered decoding requires hmmlearn")
+
+    X = returns.reshape(-1, 1)
+    n = len(X)
+
+    # Fit once on full data (same HMM model, only decoding differs)
+    model = _GaussianHMM(
+        n_components=n_regimes,
+        covariance_type="full",
+        n_iter=500, tol=1e-6, random_state=seed, min_covar=1e-12,
+    )
+    model.fit(X)
+
+    # Order states by variance (risk_on = lower vol) so labels match fit_hmm
+    vars_ = model.covars_.reshape(n_regimes, -1)[:, 0]
+    order = np.argsort(vars_)
+    label_of = {int(s): int(np.where(order == s)[0][0]) for s in range(n_regimes)}
+
+    states = np.empty(n, dtype=int)
+    last = 0
+    for t in range(1, n + 1):
+        if (t % stride == 0) or (t == n):
+            post = model.predict_proba(X[:t])[-1]
+            last = label_of[int(np.argmax(post))]
+        states[t - 1] = last
+    return states
+
 # ─── Configuration ────────────────────────────────────────────────────────────
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILES = sorted(DATA_DIR.glob("BTCUSDT-aggTrades-2026-*.csv"))
@@ -282,7 +337,20 @@ def main() -> None:
     returns = returns[np.isfinite(returns)]
     print(f"      Returns series: {len(returns):,} observations")
 
-    regimes, state_seq = fit_hmm(returns, n_regimes=N_REGIMES)
+    regimes, state_seq_viterbi = fit_hmm(returns, n_regimes=N_REGIMES)
+
+    if USE_FILTERED_HMM:
+        print(f"      Using FILTERED (causal, expanding-window) HMM decoding "
+              f"[stride={FILTERED_STRIDE}] — G look-ahead audit fix")
+        state_seq = _filtered_state_sequence(
+            returns, n_regimes=N_REGIMES, stride=FILTERED_STRIDE, seed=SEED
+        )
+        n_diff = int(np.sum(state_seq != state_seq_viterbi))
+        print(f"      Viterbi vs filtered disagreement: {n_diff}/{len(state_seq)} "
+              f"({n_diff/len(state_seq)*100:.2f}%)")
+    else:
+        state_seq = state_seq_viterbi
+
     hmm_result = (regimes, state_seq)
     reg_dict = {r.label: r for r in regimes}
     risk_on_hmm  = reg_dict["risk_on"]
@@ -292,7 +360,7 @@ def main() -> None:
     print(f"      risk_on  sigma_mult={risk_on_hmm.sigma:.4f}  prob={risk_on_hmm.probability:.4f}")
     print(f"      risk_off sigma_mult={risk_off_hmm.sigma:.4f}  prob={risk_off_hmm.probability:.4f}")
 
-    # Build empirical transition matrix from HMM Viterbi sequence
+    # Build empirical transition matrix from chosen (filtered or Viterbi) sequence
     transmat = _empirical_transition_matrix(state_seq, n_states=N_REGIMES)
     print(f"      Empirical transition matrix:\n"
           f"        risk_on→on={transmat[0,0]:.4f}  risk_on→off={transmat[0,1]:.4f}\n"

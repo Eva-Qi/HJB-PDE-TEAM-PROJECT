@@ -510,12 +510,18 @@ def _compute_execution_cost_step(
     dt: float,
     params,
 ) -> float:
-    """One-step execution cost using current regime parameters.
+    """One-step Implementation Shortfall cost using current regime parameters.
 
     q      = shares sold during this step
     v      = execution rate
     exec_px = execution price after temporary impact
-    cost   = q * exec_px
+    IS cost = q * (S0 - exec_px) = arrival-price notional minus actual revenue.
+
+    Convention match: this now matches `simulate_execution` (line ~205) which
+    accumulates `n_k * (S0 - S_k) + h_k * n_k` per step = q * (S0 - exec_px).
+    Previous implementation returned `q * exec_px` (revenue) — inconsistent
+    with simulate_execution and caused V5 paired tests to compare revenue
+    (~$S0·X0 scale) against IS cost (~$X0 * friction scale).
     """
     q = max(x_prev - x_next, 0.0)
     if q <= 0.0:
@@ -524,7 +530,7 @@ def _compute_execution_cost_step(
     v = q / dt
     temp_impact = params.eta * (v ** params.alpha)
     exec_px = s_prev - temp_impact
-    return q * exec_px
+    return q * (params.S0 - exec_px)
 
 
 def _prepare_regime_pde_controls(
