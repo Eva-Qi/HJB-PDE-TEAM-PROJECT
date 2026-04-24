@@ -101,8 +101,19 @@ def _load_single_csv(filepath: Path) -> pd.DataFrame:
         },
     )
 
-    # Binance aggTrades use microsecond timestamps (16 digits, not 13)
-    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="us", utc=True)
+    # Binance aggTrades format changed:
+    #   - Pre-2025: millisecond timestamps (13 digits, e.g. 1727740800020)
+    #   - 2025+:    microsecond timestamps (16-17 digits, e.g. 1743465600003164)
+    # Auto-detect by magnitude:
+    #   1e12 < ms < 1e13 for years 2001-2286
+    #   1e15 < us < 1e16 for same range
+    # Threshold 1e14 cleanly separates the two.
+    first_ts = int(df["timestamp"].iloc[0])
+    if first_ts < 1e14:
+        ts_unit = "ms"
+    else:
+        ts_unit = "us"
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit=ts_unit, utc=True)
 
     # Side convention: is_buyer_maker=True means taker is selling
     # side = +1 for buyer-initiated (taker buy), -1 for seller-initiated
