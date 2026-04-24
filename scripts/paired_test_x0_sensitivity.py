@@ -30,7 +30,7 @@ from montecarlo.cost_analysis import paired_strategy_test
 # Calibrated params matching scripts/x0_sensitivity_analysis.py
 BASE_PARAMS = ACParams(
     S0=69000.0, sigma=0.396, mu=0.0, X0=10.0,
-    T=1 / 24, N=50,
+    T=1.0/(365.25*24), N=250,
     gamma=1.48, eta=1.58e-4, alpha=1.0, lam=1e-6,
     fee_bps=7.5,
 )

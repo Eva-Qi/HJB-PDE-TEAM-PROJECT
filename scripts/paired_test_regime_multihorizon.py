@@ -42,8 +42,8 @@ N_REGIMES = 2
 BOOTSTRAP_REPS = 5_000
 
 X0 = 10.0
-T = 1.0 / 24
-N_STEPS = 50
+T = 1.0/(365.25*24)
+N_STEPS = 250
 LAM = 1e-6
 
 

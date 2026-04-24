@@ -60,7 +60,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 N_PATHS  = 5000
 X0       = 10.0                       # BTC to liquidate
 T        = 1.0 / (365.25 * 24)        # 1-hour execution horizon (years)
-N_STEPS  = 50
+N_STEPS  = 250
 LAM      = 1e-6
 
 # (label, train_start, train_end, test_start, test_end) — all inclusive
@@ -69,6 +69,9 @@ SPLITS = [
     ("Split-2 Feb→Mar",       "2026-02-01", "2026-02-28", "2026-03-01", "2026-03-28"),
     ("Split-3 Mar→Apr",       "2026-03-01", "2026-03-28", "2026-03-29", "2026-04-08"),
     ("Split-4 JanFeb→MarApr", "2026-01-01", "2026-03-01", "2026-03-02", "2026-04-08"),
+    # New splits using 2025 aggTrades backfill (91 days, Apr-Jun 2025)
+    ("Split-5 Apr→May 2025",  "2025-04-01", "2025-04-28", "2025-04-29", "2025-05-27"),
+    ("Split-6 May→Jun 2025",  "2025-05-01", "2025-05-28", "2025-05-29", "2025-06-27"),
 ]
 
 # Literature fallbacks (used when estimation fails on short window)
@@ -403,9 +406,19 @@ def run_split(label: str, train_start: str, train_end: str,
     # ── OOS MC simulation (for variance / confidence interval) ──────────────
     # MC uses same test_params. Costs here are implementation shortfall under
     # GBM paths; the mean should approximate oos_det_* above within MC noise.
+    #
+    # CRN (common random numbers): generate Z once and pass via Z_extern to BOTH
+    # simulate_execution calls. Implicit seed-sharing (passing seed=42 to each call
+    # and relying on internal rng init to produce identical Z) is fragile —
+    # any future refactor that adds an rng call before Z generation breaks
+    # CRN silently and inflates mean_diff variance.
     try:
-        _, costs_opt_oos  = simulate_execution(test_params, x_opt,  n_paths=N_PATHS, seed=42, antithetic=True)
-        _, costs_twap_oos = simulate_execution(test_params, x_twap, n_paths=N_PATHS, seed=42, antithetic=True)
+        rng_oos = np.random.default_rng(42)
+        n_half = N_PATHS // 2
+        Z_half = rng_oos.standard_normal((n_half, test_params.N))
+        Z_oos = np.vstack([Z_half, -Z_half])  # antithetic pairs, total = N_PATHS
+        _, costs_opt_oos  = simulate_execution(test_params, x_opt,  n_paths=N_PATHS, Z_extern=Z_oos)
+        _, costs_twap_oos = simulate_execution(test_params, x_twap, n_paths=N_PATHS, Z_extern=Z_oos)
 
         oos_mc_opt  = float(np.mean(costs_opt_oos))
         oos_mc_twap = float(np.mean(costs_twap_oos))

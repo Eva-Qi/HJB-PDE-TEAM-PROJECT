@@ -37,7 +37,7 @@ from montecarlo.cost_analysis import paired_strategy_test
 # ---------------------------------------------------------------------------
 BASE_PARAMS = ACParams(
     S0=69000.0, sigma=0.396, mu=0.0, X0=10.0,
-    T=1 / 24, N=50,
+    T=1.0/(365.25*24), N=250,
     gamma=1.48, eta=1.58e-4, alpha=1.0, lam=1e-6,
     fee_bps=7.5,
 )
@@ -102,9 +102,9 @@ def run_x0_hires(x0: float) -> dict:
 
 # Horizon definitions: label, T in years (1 year = 1 unit), N steps
 HORIZONS = [
-    {"label": "1h",  "T": 1 / 24,       "N": 50},
-    {"label": "6h",  "T": 6 / 24,       "N": 100},
-    {"label": "1d",  "T": 1.0,          "N": 250},
+    {"label": "1h",  "T": 1/(365.25*24),  "N": 50},
+    {"label": "6h",  "T": 6/(365.25*24),  "N": 100},
+    {"label": "1d",  "T": 1/365.25,       "N": 250},
 ]
 
 N_PATHS_HORIZON = 10_000

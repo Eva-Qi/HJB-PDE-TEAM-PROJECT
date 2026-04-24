@@ -27,33 +27,53 @@ def twap_trajectory(params: ACParams) -> np.ndarray:
     return params.X0 * np.linspace(1, 0, params.N + 1)
 
 
+def _hourly_volume_weights(params: ACParams) -> np.ndarray:
+    """Per-step volume weights for VWAP/POV, respecting params.T.
+
+    If params.volume_profile is provided, returns it directly (caller owns
+    normalisation). Otherwise samples HOURLY_VOLUME_PROFILE at the midpoint
+    of each step, mapped from years via params.T.
+
+    The execution span in hours is params.T * 365.25 * 24. Each step k is
+    centred at (k + 0.5) * hours_per_step hours past params.execution_start_hour,
+    and the UTC hour is that value mod 24. For T >= 24h the profile cycles
+    and weights average out toward the daily mean.
+
+    Returns
+    -------
+    np.ndarray, shape (N,)
+        Un-normalised volume weights (caller normalises).
+    """
+    if params.volume_profile is not None:
+        return np.asarray(params.volume_profile, dtype=float)
+
+    N = params.N
+    start_hour = float(getattr(params, "execution_start_hour", 0.0))
+    T_hours = params.T * 365.25 * 24.0  # years -> hours
+    hours_per_step = T_hours / N
+    weights = np.zeros(N)
+    for k in range(N):
+        hour_float = (start_hour + (k + 0.5) * hours_per_step) % 24.0
+        weights[k] = HOURLY_VOLUME_PROFILE.get(int(hour_float), 1.0)
+    return weights
+
+
 def vwap_trajectory(params: ACParams) -> np.ndarray:
     """Volume-Weighted Average Price: trade proportional to volume profile.
 
-    Allocates shares to each time step proportional to expected volume.
-    Uses HOURLY_VOLUME_PROFILE from Binance historical data.
+    Uses `_hourly_volume_weights(params)` which respects params.T and
+    params.execution_start_hour. For T below one hour, all steps fall in
+    the same hour bucket and VWAP reduces to TWAP. For T >= 1 day the
+    profile cycles through 24 hours, weighting peaks and troughs correctly.
 
-    If params.volume_profile is provided, uses that instead.
+    If params.volume_profile is provided, uses that directly.
 
     Returns
     -------
     np.ndarray, shape (N+1,)
         Inventory trajectory.
     """
-    N = params.N
-
-    if params.volume_profile is not None:
-        weights = params.volume_profile
-    else:
-        # Map each time step to an hour and use the volume profile.
-        # Assumes execution window spans a full 24h cycle starting at hour 0.
-        # For N < 24, multiple hours collapse into single steps; for N >> 24,
-        # multiple steps share the same hourly weight.
-        hours_per_step = 24.0 / N
-        weights = np.zeros(N)
-        for k in range(N):
-            hour = int((k * hours_per_step) % 24)
-            weights[k] = HOURLY_VOLUME_PROFILE.get(hour, 1.0)
+    weights = _hourly_volume_weights(params)
 
     # Normalize weights
     weights = weights / weights.sum()
@@ -95,16 +115,8 @@ def pov_trajectory(params: ACParams, participation_rate: float = 0.10) -> np.nda
     N = params.N
     X0 = params.X0
 
-    # Build volume weights (same logic as vwap_trajectory)
-    if params.volume_profile is not None:
-        weights = params.volume_profile.copy().astype(float)
-    else:
-        hours_per_step = 24.0 / N
-        weights = np.zeros(N)
-        for k in range(N):
-            hour = int((k * hours_per_step) % 24)
-            weights[k] = HOURLY_VOLUME_PROFILE.get(hour, 1.0)
-
+    # Volume weights via shared helper — respects params.T + execution_start_hour
+    weights = _hourly_volume_weights(params).astype(float)
     weights = weights / weights.sum()  # normalized step-volume fractions
 
     # Raw POV trades: participation_rate * volume_weight * some_total_market_volume

@@ -65,8 +65,8 @@ ALPHA_STAT = 0.05
 
 # Execution parameters (identical to V4 / V3 / V2 / V1)
 X0 = 10.0
-T = 1.0 / 24   # 1-hour horizon
-N_STEPS = 50
+T = 1.0/(365.25*24)   # 1-hour horizon
+N_STEPS = 250
 LAM = 1e-6
 
 

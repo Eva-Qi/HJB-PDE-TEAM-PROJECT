@@ -263,6 +263,39 @@ class TestStrategies:
                     "floating-point tolerance",
         )
 
+    def test_vwap_schedule_changes_with_T(self):
+        """VWAP must respect params.T. Schedules for T=1h vs T=24h differ.
+
+        Before the T-aware fix, VWAP hardcoded hours_per_step = 24/N, so
+        schedules were identical regardless of T. After the fix, a 1-hour
+        execution samples a single hour bucket (degenerating to TWAP),
+        while a 24-hour execution samples the full diurnal cycle.
+        """
+        p_1h = replace(DEFAULT_PARAMS, T=1.0 / (365.25 * 24), N=50)
+        p_1d = replace(DEFAULT_PARAMS, T=1.0 / 365.25, N=50)
+        x_1h = vwap_trajectory(p_1h)
+        x_1d = vwap_trajectory(p_1d)
+
+        # 1-hour execution → all steps in same hour bucket → shape ≈ TWAP
+        x_twap = twap_trajectory(p_1h)
+        # Same tolerance policy as test_vwap_reduces_to_twap_under_flat_profile
+        np.testing.assert_allclose(
+            x_1h, x_twap, rtol=1e-8, atol=1e-4,
+            err_msg=("VWAP at T=1h should degenerate to TWAP (all steps within "
+                     "a single hour bucket)"),
+        )
+
+        # 24-hour execution → VWAP sees full diurnal cycle → schedule ≠ TWAP
+        assert not np.allclose(x_1d, x_twap, rtol=1e-3), (
+            "VWAP at T=24h should differ from TWAP (volume profile has "
+            "within-day variation)"
+        )
+
+        # And the two VWAP schedules themselves must differ
+        assert not np.allclose(x_1h, x_1d, rtol=1e-6), (
+            "VWAP(T=1h) and VWAP(T=24h) must differ — T-invariance is the bug"
+        )
+
 
 class TestCostModel:
     """Test cost model functions."""

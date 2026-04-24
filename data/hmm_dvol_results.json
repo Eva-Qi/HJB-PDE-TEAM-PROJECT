@@ -1,0 +1,243 @@
+{
+  "experiment_id": "hmm_with_dvol",
+  "dvol_source": "data/deribit_dvol_btc_daily.json",
+  "heston_source": "data/heston_qmeasure_time_series.json",
+  "dvol_coverage": {
+    "start": "2025-05-01",
+    "end": "2026-04-21",
+    "n_days": 356,
+    "units": "percent (annualised implied vol)"
+  },
+  "experiment_1_rho_vs_dvol": {
+    "n_months_total": 12,
+    "n_months_usable": 12,
+    "n_months_missing_dvol": 0,
+    "pearson_r": -0.2670156041139579,
+    "spearman_r": -0.07692307692307693,
+    "spearman_p": 0.8121826980280591,
+    "point_biserial_r": 0.2682731443309287,
+    "point_biserial_p": 0.3991851470231839,
+    "mean_dvol_when_rho_negative": 47.04218202764978,
+    "mean_dvol_when_rho_positive": 43.445357228195945,
+    "n_rho_negative": 3,
+    "n_rho_positive": 9,
+    "high_dvol_implies_neg_rho": true,
+    "monthly_table": [
+      {
+        "month": "2025-05",
+        "month_start": "2025-05-01",
+        "month_end": "2025-05-31",
+        "rho": -0.487689,
+        "mean_dvol": 45.83290322580646,
+        "dvol_n_days": 31
+      },
+      {
+        "month": "2025-06",
+        "month_start": "2025-06-01",
+        "month_end": "2025-06-30",
+        "rho": -0.497716,
+        "mean_dvol": 40.864,
+        "dvol_n_days": 30
+      },
+      {
+        "month": "2025-07",
+        "month_start": "2025-07-01",
+        "month_end": "2025-07-31",
+        "rho": 0.585561,
+        "mean_dvol": 38.73258064516129,
+        "dvol_n_days": 31
+      },
+      {
+        "month": "2025-08",
+        "month_start": "2025-08-01",
+        "month_end": "2025-08-31",
+        "rho": 0.593815,
+        "mean_dvol": 36.68870967741935,
+        "dvol_n_days": 31
+      },
+      {
+        "month": "2025-09",
+        "month_start": "2025-09-01",
+        "month_end": "2025-09-30",
+        "rho": 0.593915,
+        "mean_dvol": 36.39966666666667,
+        "dvol_n_days": 30
+      },
+      {
+        "month": "2025-10",
+        "month_start": "2025-10-01",
+        "month_end": "2025-10-31",
+        "rho": 0.566165,
+        "mean_dvol": 43.550000000000004,
+        "dvol_n_days": 31
+      },
+      {
+        "month": "2025-11",
+        "month_start": "2025-11-01",
+        "month_end": "2025-11-30",
+        "rho": 0.608044,
+        "mean_dvol": 49.07166666666667,
+        "dvol_n_days": 30
+      },
+      {
+        "month": "2025-12",
+        "month_start": "2025-12-01",
+        "month_end": "2025-12-31",
+        "rho": 0.550619,
+        "mean_dvol": 45.63999999999999,
+        "dvol_n_days": 31
+      },
+      {
+        "month": "2026-01",
+        "month_start": "2026-01-01",
+        "month_end": "2026-01-31",
+        "rho": 0.578907,
+        "mean_dvol": 41.24225806451613,
+        "dvol_n_days": 31
+      },
+      {
+        "month": "2026-02",
+        "month_start": "2026-02-01",
+        "month_end": "2026-02-28",
+        "rho": -0.502185,
+        "mean_dvol": 54.429642857142866,
+        "dvol_n_days": 28
+      },
+      {
+        "month": "2026-03",
+        "month_start": "2026-03-01",
+        "month_end": "2026-03-31",
+        "rho": 0.596169,
+        "mean_dvol": 54.339999999999996,
+        "dvol_n_days": 31
+      },
+      {
+        "month": "2026-04",
+        "month_start": "2026-04-01",
+        "month_end": "2026-04-30",
+        "rho": 0.595292,
+        "mean_dvol": 45.34333333333334,
+        "dvol_n_days": 21
+      }
+    ]
+  },
+  "experiment_2_hmm_baseline_vs_dvol": {
+    "window_start": "2026-01-01",
+    "window_end": "2026-04-08",
+    "n_bars": 28223,
+    "baseline_log_return_only": {
+      "n_states": 2,
+      "n_features": 1,
+      "cov_type": "diag",
+      "T": 28223,
+      "k_params": 7,
+      "log_likelihood": 146068.93007611096,
+      "aic": -292123.8601522219,
+      "bic": -292066.12490453053,
+      "means": [
+        [
+          -3.8136429233752243e-06
+        ],
+        [
+          -3.402264158518348e-05
+        ]
+      ],
+      "covariances": [
+        [
+          [
+            1.6083626715555394e-06
+          ]
+        ],
+        [
+          [
+            1.7108818386527386e-05
+          ]
+        ]
+      ],
+      "transition_matrix": [
+        [
+          0.9860596359461408,
+          0.013940364053859204
+        ],
+        [
+          0.10184293895019596,
+          0.8981570610498041
+        ]
+      ],
+      "startprob": [
+        1.0,
+        5.290897637438873e-54
+      ],
+      "stationary": [
+        0.8795995303971337,
+        0.12040046960286639
+      ],
+      "n_init": 5
+    },
+    "bivariate_log_return_plus_dvol": {
+      "n_states": 2,
+      "n_features": 2,
+      "cov_type": "full",
+      "T": 28223,
+      "k_params": 13,
+      "log_likelihood": 64707.04439046998,
+      "aic": -129388.08878093996,
+      "bic": -129280.86617808454,
+      "means": [
+        [
+          -5.83587222395229e-06,
+          41.13798031621066
+        ],
+        [
+          -8.197680438346568e-06,
+          53.68891526102274
+        ]
+      ],
+      "covariances": [
+        [
+          [
+            2.4824197500971873e-06,
+            -4.175267630522731e-06
+          ],
+          [
+            -4.1752676305230794e-06,
+            4.44484756098801
+          ]
+        ],
+        [
+          [
+            3.9336532949182594e-06,
+            -0.0002212601239601182
+          ],
+          [
+            -0.00022126012396011773,
+            21.273585386989716
+          ]
+        ]
+      ],
+      "transition_matrix": [
+        [
+          0.9998879295766296,
+          0.00011207042337048208
+        ],
+        [
+          5.184053716900693e-05,
+          0.999948159462831
+        ]
+      ],
+      "startprob": [
+        1.0,
+        1.1070506194276905e-19
+      ],
+      "stationary": [
+        0.31627254820792244,
+        0.6837274517920775
+      ],
+      "n_init": 5
+    },
+    "delta_log_likelihood": -81361.88568564098,
+    "delta_aic": 162735.77137128197,
+    "delta_bic": 162785.258726446,
+    "verdict": "DVOL does NOT improve model under AIC/BIC"
+  }
+}

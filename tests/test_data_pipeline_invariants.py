@@ -82,7 +82,7 @@ class TestKyleLambdaSignInvariant:
         if not trades_dir.exists() or not list(trades_dir.glob("*aggTrades*.csv")):
             pytest.skip("No real BTCUSDT data in data/ — skipping integration test")
 
-        r = calibrated_params(str(trades_dir), X0=10, T=1 / 24, N=50, lam=1e-6)
+        r = calibrated_params(str(trades_dir), X0=10, T=1.0 / (365.25 * 24), N=250, lam=1e-6)
         src = r.sources.get("gamma", "unknown")
         assert src.startswith("aggregated_"), (
             f"Expected gamma from aggregated method, got source='{src}'. "

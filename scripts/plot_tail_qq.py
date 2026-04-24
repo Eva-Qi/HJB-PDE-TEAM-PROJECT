@@ -43,7 +43,7 @@ def main():
         sigma=sigma_const,
         mu=0.0,
         X0=10.0,
-        T=1.0 / 24.0,
+        T=1.0/(365.25*24),
         N=50,
         gamma=1.48,
         eta=1.58e-4,

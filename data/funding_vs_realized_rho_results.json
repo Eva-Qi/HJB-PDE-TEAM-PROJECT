@@ -1,0 +1,68 @@
+{
+  "test1_daily": {
+    "pearson_30d": 0.190382,
+    "p_pearson_30d": 0.000297,
+    "spearman_30d": 0.243408,
+    "p_spearman_30d": 3e-06,
+    "pearson_60d": 0.232231,
+    "p_pearson_60d": 9e-06,
+    "spearman_60d": 0.255647,
+    "p_spearman_60d": 1e-06,
+    "n_days_30d": 357,
+    "n_days_60d": 357
+  },
+  "test2_monthly": {
+    "pearson_30d": 0.235807,
+    "p_pearson_30d": 0.460622,
+    "spearman_30d": 0.384615,
+    "p_spearman_30d": 0.21702,
+    "pearson_60d": 0.304681,
+    "p_pearson_60d": 0.335588,
+    "spearman_60d": 0.440559,
+    "p_spearman_60d": 0.151735,
+    "point_biserial_sign_fund_vs_r30": 0.429059,
+    "p_point_biserial": 0.163975,
+    "n_months": 12
+  },
+  "test3_lag": [
+    {
+      "k_days": -7,
+      "pearson": 0.179735,
+      "p": 0.00073,
+      "n": 350
+    },
+    {
+      "k_days": -3,
+      "pearson": 0.20542,
+      "p": 9.9e-05,
+      "n": 354
+    },
+    {
+      "k_days": 0,
+      "pearson": 0.190382,
+      "p": 0.000297,
+      "n": 357
+    },
+    {
+      "k_days": 3,
+      "pearson": 0.179139,
+      "p": 0.000709,
+      "n": 354
+    },
+    {
+      "k_days": 7,
+      "pearson": 0.132637,
+      "p": 0.013009,
+      "n": 350
+    }
+  ],
+  "test4_quartile": {
+    "top_quartile_abs_funding_rho_mean": -0.040111,
+    "bottom_quartile_abs_funding_rho_mean": -0.117932,
+    "diff": 0.077821,
+    "t_test_p": 0.034434,
+    "n_top": 90,
+    "n_bottom": 89
+  },
+  "verdict": "YES (weak): daily Pearson significant but small magnitude; monthly N=12 too small to confirm"
+}

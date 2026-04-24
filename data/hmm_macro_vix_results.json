@@ -1,0 +1,508 @@
+{
+  "experiment": "hmm_macro_vix_overlay",
+  "generated_at": "2026-04-22T23:04:16.787655+00:00",
+  "hypothesis": "BTC risk regimes correlate with broader macro risk. Adding ^VIX as 2nd HMM feature should improve regime detection over pure BTC-internal features.",
+  "date_alignment_notes": {
+    "btc_frequency": "24/7 daily (Binance spot)",
+    "vix_frequency": "US business-day close (yfinance ^VIX)",
+    "strategy": "forward-fill VIX onto BTC weekends/holidays",
+    "justification": "Standard practice in mixed-frequency cross-asset panels. Matches what a real-time trader would see on Sat: last Friday's VIX close, no new info until Monday open.",
+    "ffill_diagnostics": {
+      "btc_rows_total": 499,
+      "vix_rows_total": 827,
+      "btc_rows_with_native_vix": 343,
+      "btc_rows_ffilled": 156,
+      "ffill_fraction": 0.312625250501002
+    }
+  },
+  "variants": [
+    {
+      "variant_name": "V1_baseline_log_return",
+      "features": [
+        "log_return"
+      ],
+      "n_obs": 498,
+      "n_features": 1,
+      "n_states": 2,
+      "n_free_params": 7,
+      "log_likelihood": 1155.7310009318223,
+      "aic": -2297.4620018636447,
+      "bic": -2267.987801324472,
+      "per_obs_log_likelihood": 2.320744981790808,
+      "regime_counts_raw": [
+        497,
+        1
+      ],
+      "min_state_fraction": 0.002008032128514056,
+      "degenerate_fit": true,
+      "regimes": [
+        {
+          "state": 0,
+          "label": "risk_on",
+          "n_obs": 497,
+          "fraction": 0.9979919678714859,
+          "mean_log_return": -0.0007703932983940804,
+          "std_log_return": 0.023391477922904816
+        },
+        {
+          "state": 1,
+          "label": "risk_off",
+          "n_obs": 1,
+          "fraction": 0.002008032128514056,
+          "mean_log_return": 1.3486165672817971,
+          "std_log_return": null
+        }
+      ],
+      "transition_matrix": [
+        [
+          0.997983870967743,
+          0.002016129032256996
+        ],
+        [
+          1.0,
+          2.3087230159288358e-166
+        ]
+      ],
+      "sanity_check_high_vix": {
+        "quantile": 0.75,
+        "vix_cutoff": 20.780000686645508,
+        "n_high_vix_days": 126,
+        "n_high_vix_riskoff": 0,
+        "riskoff_rate_high_vix": 0.0,
+        "baseline_riskoff_rate_all_days": 0.002008032128514056,
+        "n_total": 498
+      },
+      "sample_classifications": [
+        {
+          "date": "2023-05-05",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.02339393690335353
+        },
+        {
+          "date": "2023-05-06",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.01605545635785215
+        },
+        {
+          "date": "2023-05-07",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.005868955810252089
+        },
+        {
+          "date": "2026-04-19",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.02536858358154877
+        },
+        {
+          "date": "2026-04-20",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.027346823593654444
+        },
+        {
+          "date": "2026-04-21",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.0008502313362533676
+        }
+      ]
+    },
+    {
+      "variant_name": "V2_plus_vix_level",
+      "features": [
+        "log_return",
+        "vix_close"
+      ],
+      "n_obs": 498,
+      "n_features": 2,
+      "n_states": 2,
+      "n_free_params": 13,
+      "log_likelihood": -196.60537340103835,
+      "aic": 419.2107468020767,
+      "bic": 473.9485478033972,
+      "per_obs_log_likelihood": -0.39478990642778783,
+      "regime_counts_raw": [
+        95,
+        403
+      ],
+      "min_state_fraction": 0.19076305220883535,
+      "degenerate_fit": false,
+      "regimes": [
+        {
+          "state": 0,
+          "label": "risk_on",
+          "n_obs": 403,
+          "fraction": 0.8092369477911646,
+          "mean_log_return": -0.0014240386284130207,
+          "std_log_return": 0.019611201957981723
+        },
+        {
+          "state": 1,
+          "label": "risk_off",
+          "n_obs": 95,
+          "fraction": 0.19076305220883535,
+          "mean_log_return": 0.01620651226558301,
+          "std_log_return": 0.14254807365550148
+        }
+      ],
+      "transition_matrix": [
+        [
+          0.984631769413484,
+          0.015368230586516079
+        ],
+        [
+          0.06301522124081028,
+          0.9369847787591897
+        ]
+      ],
+      "sanity_check_high_vix": {
+        "quantile": 0.75,
+        "vix_cutoff": 20.780000686645508,
+        "n_high_vix_days": 126,
+        "n_high_vix_riskoff": 92,
+        "riskoff_rate_high_vix": 0.7301587301587301,
+        "baseline_riskoff_rate_all_days": 0.19076305220883535,
+        "n_total": 498
+      },
+      "sample_classifications": [
+        {
+          "date": "2023-05-05",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.02339393690335353
+        },
+        {
+          "date": "2023-05-06",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.01605545635785215
+        },
+        {
+          "date": "2023-05-07",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.005868955810252089
+        },
+        {
+          "date": "2026-04-19",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.02536858358154877
+        },
+        {
+          "date": "2026-04-20",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.027346823593654444
+        },
+        {
+          "date": "2026-04-21",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.0008502313362533676
+        }
+      ]
+    },
+    {
+      "variant_name": "V3_plus_d_log_vix",
+      "features": [
+        "log_return",
+        "d_log_vix"
+      ],
+      "n_obs": 498,
+      "n_features": 2,
+      "n_states": 2,
+      "n_free_params": 13,
+      "log_likelihood": 1878.9596678929006,
+      "aic": -3731.919335785801,
+      "bic": -3677.181534784481,
+      "per_obs_log_likelihood": 3.7730113813110453,
+      "regime_counts_raw": [
+        488,
+        10
+      ],
+      "min_state_fraction": 0.020080321285140562,
+      "degenerate_fit": true,
+      "regimes": [
+        {
+          "state": 0,
+          "label": "risk_on",
+          "n_obs": 488,
+          "fraction": 0.9799196787148594,
+          "mean_log_return": -0.0007108971310194494,
+          "std_log_return": 0.020574158251787694
+        },
+        {
+          "state": 1,
+          "label": "risk_off",
+          "n_obs": 10,
+          "fraction": 0.020080321285140562,
+          "mean_log_return": 0.13126488979174303,
+          "std_log_return": 0.43611378623077574
+        }
+      ],
+      "transition_matrix": [
+        [
+          0.9847235213321657,
+          0.015276478667834346
+        ],
+        [
+          0.647894907568355,
+          0.3521050924316451
+        ]
+      ],
+      "sanity_check_high_vix": {
+        "quantile": 0.75,
+        "vix_cutoff": 20.780000686645508,
+        "n_high_vix_days": 126,
+        "n_high_vix_riskoff": 7,
+        "riskoff_rate_high_vix": 0.05555555555555555,
+        "baseline_riskoff_rate_all_days": 0.020080321285140562,
+        "n_total": 498
+      },
+      "sample_classifications": [
+        {
+          "date": "2023-05-05",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.02339393690335353
+        },
+        {
+          "date": "2023-05-06",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.01605545635785215
+        },
+        {
+          "date": "2023-05-07",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.005868955810252089
+        },
+        {
+          "date": "2026-04-19",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.02536858358154877
+        },
+        {
+          "date": "2026-04-20",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.027346823593654444
+        },
+        {
+          "date": "2026-04-21",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.0008502313362533676
+        }
+      ]
+    },
+    {
+      "variant_name": "V4_plus_vix_flowin",
+      "features": [
+        "log_return",
+        "log_vix",
+        "log_flow_in"
+      ],
+      "n_obs": 98,
+      "n_features": 3,
+      "n_states": 2,
+      "n_free_params": 21,
+      "log_likelihood": 213.7683988665494,
+      "aic": -385.5367977330988,
+      "bic": -331.2524806810168,
+      "per_obs_log_likelihood": 2.1813101925158103,
+      "regime_counts_raw": [
+        36,
+        62
+      ],
+      "min_state_fraction": 0.3673469387755102,
+      "degenerate_fit": false,
+      "regimes": [
+        {
+          "state": 0,
+          "label": "risk_on",
+          "n_obs": 62,
+          "fraction": 0.6326530612244898,
+          "mean_log_return": 0.0020336527194813976,
+          "std_log_return": 0.027952079036530623
+        },
+        {
+          "state": 1,
+          "label": "risk_off",
+          "n_obs": 36,
+          "fraction": 0.3673469387755102,
+          "mean_log_return": -0.00916273368089509,
+          "std_log_return": 0.033605688769675825
+        }
+      ],
+      "transition_matrix": [
+        [
+          0.9999999985637428,
+          1.4362572056749554e-09
+        ],
+        [
+          0.02777776850256805,
+          0.9722222314974319
+        ]
+      ],
+      "sanity_check_high_vix": {
+        "quantile": 0.75,
+        "vix_cutoff": 24.214999675750732,
+        "n_high_vix_days": 25,
+        "n_high_vix_riskoff": 0,
+        "riskoff_rate_high_vix": 0.0,
+        "baseline_riskoff_rate_all_days": 0.3673469387755102,
+        "n_total": 98
+      },
+      "sample_classifications": [
+        {
+          "date": "2026-01-01",
+          "state": 1,
+          "label": "risk_off",
+          "log_return": 0.01595932638027945
+        },
+        {
+          "date": "2026-01-02",
+          "state": 1,
+          "label": "risk_off",
+          "log_return": 0.014080934286492028
+        },
+        {
+          "date": "2026-01-03",
+          "state": 1,
+          "label": "risk_off",
+          "log_return": 0.004541786365689229
+        },
+        {
+          "date": "2026-04-06",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.0013506022369228034
+        },
+        {
+          "date": "2026-04-07",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.043698621250308836
+        },
+        {
+          "date": "2026-04-08",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.011571599776979892
+        }
+      ]
+    },
+    {
+      "variant_name": "V5_plus_vix_flows",
+      "features": [
+        "log_return",
+        "log_vix",
+        "log_flow_in",
+        "log_flow_out"
+      ],
+      "n_obs": 98,
+      "n_features": 4,
+      "n_states": 2,
+      "n_free_params": 31,
+      "log_likelihood": 257.22324499095464,
+      "aic": -452.4464899819093,
+      "bic": -372.3124981431215,
+      "per_obs_log_likelihood": 2.624726989703619,
+      "regime_counts_raw": [
+        36,
+        62
+      ],
+      "min_state_fraction": 0.3673469387755102,
+      "degenerate_fit": false,
+      "regimes": [
+        {
+          "state": 0,
+          "label": "risk_on",
+          "n_obs": 62,
+          "fraction": 0.6326530612244898,
+          "mean_log_return": 0.0020336527194813976,
+          "std_log_return": 0.027952079036530623
+        },
+        {
+          "state": 1,
+          "label": "risk_off",
+          "n_obs": 36,
+          "fraction": 0.3673469387755102,
+          "mean_log_return": -0.00916273368089509,
+          "std_log_return": 0.033605688769675825
+        }
+      ],
+      "transition_matrix": [
+        [
+          0.9999999999999407,
+          5.929167796228243e-14
+        ],
+        [
+          0.027777779644805517,
+          0.9722222203551945
+        ]
+      ],
+      "sanity_check_high_vix": {
+        "quantile": 0.75,
+        "vix_cutoff": 24.214999675750732,
+        "n_high_vix_days": 25,
+        "n_high_vix_riskoff": 0,
+        "riskoff_rate_high_vix": 0.0,
+        "baseline_riskoff_rate_all_days": 0.3673469387755102,
+        "n_total": 98
+      },
+      "sample_classifications": [
+        {
+          "date": "2026-01-01",
+          "state": 1,
+          "label": "risk_off",
+          "log_return": 0.01595932638027945
+        },
+        {
+          "date": "2026-01-02",
+          "state": 1,
+          "label": "risk_off",
+          "log_return": 0.014080934286492028
+        },
+        {
+          "date": "2026-01-03",
+          "state": 1,
+          "label": "risk_off",
+          "log_return": 0.004541786365689229
+        },
+        {
+          "date": "2026-04-06",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.0013506022369228034
+        },
+        {
+          "date": "2026-04-07",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": 0.043698621250308836
+        },
+        {
+          "date": "2026-04-08",
+          "state": 0,
+          "label": "risk_on",
+          "log_return": -0.011571599776979892
+        }
+      ]
+    }
+  ],
+  "best_full_sample_by_bic": "V3_plus_d_log_vix",
+  "caveats": [
+    "V4/V5 use only the 98-day CoinMetrics window (2026-01-01 to 2026-04-08) -- AIC/BIC NOT directly comparable to V1-V3 which use the full 499-day window.",
+    "BIC penalises parameter count more than AIC; full-cov HMM with d=3 has 2*3*4/2=12 cov params per state, so BIC will generally favour parsimonious 1-2 feature models.",
+    "2-state HMM only. 3-state variants not tested here; see scripts/compare_2state_vs_3state_hmm.py for that question."
+  ]
+}

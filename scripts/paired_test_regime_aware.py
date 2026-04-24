@@ -51,8 +51,8 @@ BOOTSTRAP_REPS = 5_000
 
 # Execution parameters matching the project's calibrated setup
 X0 = 10.0          # 10 BTC
-T = 1.0 / 24      # 1 hour horizon
-N_STEPS = 50
+T = 1.0/(365.25*24)      # 1 hour horizon
+N_STEPS = 250
 LAM = 1e-6
 
 

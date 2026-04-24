@@ -62,6 +62,10 @@ class ACParams:
         Exchange fee in basis points per notional traded. Default 0.0
         (fees excluded from cost). Binance BTCUSDT spot taker = 7.5 bps.
         Applied as fee_bps/1e4 * S0 * |n_k| per trade.
+    execution_start_hour : float
+        UTC hour [0, 24) when execution begins. Affects VWAP/POV only
+        (AC and TWAP are time-of-day independent). Default 0.0 for
+        reproducibility.
     volume_profile : np.ndarray or None
         Normalized intraday volume weights for VWAP. Length N.
         If None, uniform (TWAP).
@@ -78,6 +82,7 @@ class ACParams:
     alpha: float
     lam: float
     fee_bps: float = 0.0
+    execution_start_hour: float = 0.0
     volume_profile: Optional[np.ndarray] = field(default=None, repr=False)
 
     @property
@@ -110,7 +115,7 @@ DEFAULT_PARAMS = ACParams(
     mu=0.0,             # zero drift over execution horizon
     X0=1_000_000,       # 1M shares to liquidate
     T=0.25,             # ~63 trading days (~3 months)
-    N=50,               # time steps
+    N=250,              # time steps
     gamma=2.5e-7,       # permanent impact
     eta=2.5e-6,         # temporary impact
     alpha=1.0,          # linear temporary impact
@@ -127,8 +132,17 @@ def almgren_chriss_closed_form(
 
     Valid only when alpha = 1.0 (linear temporary impact).
 
-    The optimal inventory trajectory is:
+    The optimal inventory trajectory is the *continuous-time* Almgren-Chriss
+    solution, sampled at discrete grid points:
+
         x*(t_k) = X0 * sinh(kappa * (T - t_k)) / sinh(kappa * T)
+
+    Discrete-time note: this samples the continuous optimal policy at N
+    discrete times. The fully discrete-time AC formula uses tilde(kappa) =
+    acosh(1 + 0.5 * (kappa * dt)^2) / dt instead of kappa, producing a
+    slightly different schedule. The two converge as dt -> 0 with
+    bias O(dt^2). For N=50 at default params the bias is under 1% of cost;
+    see tests/test_closed_form_convergence.py for the convergence sweep.
 
     The optimal trade list (shares per step) is:
         n_k = x*(t_{k-1}) - x*(t_k)

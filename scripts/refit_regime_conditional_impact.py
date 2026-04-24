@@ -35,8 +35,8 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILES = sorted(DATA_DIR.glob("BTCUSDT-aggTrades-2026-*.csv"))
 
 X0 = 10.0
-T_HORIZON = 1.0 / 24   # 1-hour execution window
-N_STEPS = 50
+T_HORIZON = 1.0/(365.25*24)   # 1-hour execution window
+N_STEPS = 250
 LAM = 1e-6
 
 

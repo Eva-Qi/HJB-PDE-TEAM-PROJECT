@@ -1,0 +1,135 @@
+{
+  "2_state": {
+    "base_params": {
+      "sigma": 0.1314983377152761,
+      "gamma": 2.6723421626313173,
+      "eta": 2.7616375036136025e-05,
+      "alpha": 1.106389753710262
+    },
+    "per_regime": [
+      {
+        "label": "risk_on",
+        "regime_idx": 0,
+        "sigma_mult": 0.7036077257753593,
+        "n_regime_trades": 0,
+        "true_sigma": 0.38508974019331366,
+        "true_gamma": 1.5080652184542604,
+        "true_eta": 0.00014912430368163994,
+        "true_alpha": 0.41944702741887513,
+        "yuhao_gamma": 2.1333689585769844,
+        "yuhao_eta": 1.5512120838517686e-05,
+        "rel_err_gamma": 0.41463972013335665,
+        "rel_err_eta": -0.895978586618356,
+        "sources": {
+          "sigma": "estimated",
+          "gamma": "aggregated_1min",
+          "eta": "aggregated_1min",
+          "alpha": "aggregated_1min"
+        },
+        "warnings": []
+      },
+      {
+        "label": "risk_off",
+        "regime_idx": 1,
+        "sigma_mult": 2.4982397803183574,
+        "n_regime_trades": 0,
+        "true_sigma": 1.170695148414242,
+        "true_gamma": 1.453158566359022,
+        "true_eta": 0.001,
+        "true_alpha": 0.6,
+        "yuhao_gamma": 8.26454217019546,
+        "yuhao_eta": 0.0002133671359281549,
+        "rel_err_gamma": 4.687295496528487,
+        "rel_err_eta": -0.7866328640718451,
+        "sources": {
+          "sigma": "estimated",
+          "gamma": "aggregated_1min",
+          "eta": "fallback",
+          "alpha": "fallback"
+        },
+        "warnings": [
+          "[impact 1min] alpha=0.261 r\u00b2=0.100 out of window for regime 1",
+          "[impact 5min] alpha=0.266 r\u00b2=0.098 out of window for regime 1",
+          "Regime 1: all impact methods failed \u2014 using literature fallback eta=1e-3 alpha=0.6"
+        ]
+      }
+    ]
+  },
+  "3_state": {
+    "base_params": {
+      "sigma": 0.1314983377152761,
+      "gamma": 2.6723421626313173,
+      "eta": 2.7616375036136025e-05,
+      "alpha": 1.106389753710262
+    },
+    "per_regime": [
+      {
+        "label": "risk_on",
+        "regime_idx": 0,
+        "sigma_mult": 0.760507768895296,
+        "n_regime_trades": 0,
+        "true_sigma": 0.40895982898585337,
+        "true_gamma": 1.5688259896124517,
+        "true_eta": 0.00015183596668100544,
+        "true_alpha": 0.4226083541463677,
+        "yuhao_gamma": 2.2541714369074977,
+        "yuhao_eta": 1.7715980984599554e-05,
+        "rel_err_gamma": 0.4368524309470086,
+        "rel_err_eta": -0.8833215780697117,
+        "sources": {
+          "sigma": "estimated",
+          "gamma": "aggregated_1min",
+          "eta": "aggregated_1min",
+          "alpha": "aggregated_1min"
+        },
+        "warnings": []
+      },
+      {
+        "label": "neutral",
+        "regime_idx": 1,
+        "sigma_mult": 0.7751640256800606,
+        "n_regime_trades": 0,
+        "true_sigma": 0.4142783787366065,
+        "true_gamma": 1.3272791902347771,
+        "true_eta": 0.00015278336502719424,
+        "true_alpha": 0.42537068819906576,
+        "yuhao_gamma": 2.3009486270144284,
+        "yuhao_eta": 1.8432113666474988e-05,
+        "rel_err_gamma": 0.7335829898812944,
+        "rel_err_eta": -0.8793578498340168,
+        "sources": {
+          "sigma": "estimated",
+          "gamma": "aggregated_1min",
+          "eta": "aggregated_1min",
+          "alpha": "aggregated_1min"
+        },
+        "warnings": []
+      },
+      {
+        "label": "risk_off",
+        "regime_idx": 2,
+        "sigma_mult": 2.8512526805539937,
+        "n_regime_trades": 0,
+        "true_sigma": 1.3244230664210395,
+        "true_gamma": 1.549842100408384,
+        "true_eta": 0.001,
+        "true_alpha": 0.6,
+        "yuhao_gamma": 9.526613865623352,
+        "yuhao_eta": 0.0002807041784194092,
+        "rel_err_gamma": 5.146828675716762,
+        "rel_err_eta": -0.7192958215805909,
+        "sources": {
+          "sigma": "estimated",
+          "gamma": "aggregated_1min",
+          "eta": "fallback",
+          "alpha": "fallback"
+        },
+        "warnings": [
+          "[impact 1min] alpha=0.259 r\u00b2=0.102 out of window for regime 2",
+          "[impact 5min] alpha=0.267 r\u00b2=0.104 out of window for regime 2",
+          "Regime 2: all impact methods failed \u2014 using literature fallback eta=1e-3 alpha=0.6"
+        ]
+      }
+    ]
+  }
+}

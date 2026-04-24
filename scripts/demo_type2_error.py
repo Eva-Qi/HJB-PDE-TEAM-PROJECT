@@ -9,7 +9,7 @@ from montecarlo.strategies import twap_trajectory, optimal_trajectory
 from montecarlo.cost_analysis import paired_strategy_test
 
 # Calibrated params from Binance
-T_1HR = 1.0 / (24)
+T_1HR = 1.0/(365.25*24)
 S0, sigma, eta = 68918.0, 0.4214, 1.58e-4
 kappa_needed = 1.5 / T_1HR
 lam = 1e-6
