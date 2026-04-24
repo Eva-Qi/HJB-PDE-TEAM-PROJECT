@@ -1,0 +1,14 @@
+{
+  "n_obs": 28223,
+  "start": "2026-01-01",
+  "end": "2026-04-08",
+  "stride_filtered": 14,
+  "viterbi_riskoff_count": 3000,
+  "filtered_riskoff_count": 2940,
+  "viterbi_riskoff_fraction": 0.10629628317329837,
+  "filtered_riskoff_fraction": 0.1041703575098324,
+  "pct_match": 0.9026326046132587,
+  "adjusted_rand_index": 0.4250296662584719,
+  "hmm_sigma_risk_on": 0.0012683498865870835,
+  "hmm_sigma_risk_off": 0.004138386967457667
+}
