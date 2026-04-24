@@ -1,33 +1,33 @@
 {
   "n_paths": 10000,
-  "mean_single": 104.05147939334617,
-  "mean_aware": 107.79439381887826,
-  "mean_diff": 3.7429144255320717,
-  "t_statistic": 0.19877289372764276,
-  "t_pvalue": 0.8424444418719541,
-  "bootstrap_pvalue": 0.8344,
-  "significant_at_0.05": false,
+  "mean_single": 209.32875197049188,
+  "mean_aware": 225.582536986536,
+  "mean_diff": 16.253785016044148,
+  "t_statistic": 16.30022384028047,
+  "t_pvalue": 5.644358124296421e-59,
+  "bootstrap_pvalue": 0.0,
+  "significant_at_0.05": true,
   "regime_sigmas": {
     "risk_on": 0.7036077257753593,
-    "risk_off": 2.4982397803183574
+    "risk_off": 2.498239780318358
   },
   "stationary_probs": {
     "risk_on": 0.9120929738156822,
     "risk_off": 0.08790702618431775
   },
   "regime_gammas": {
-    "risk_on": 0.7983142983742644,
-    "risk_off": 3.0926212540305067,
+    "risk_on": 0.7983142983742642,
+    "risk_off": 3.0926212540305094,
     "base": 2.6723421626313173
   },
   "regime_etas": {
-    "risk_on": 0.5617001079330678,
-    "risk_off": 7.726109442277056,
+    "risk_on": 0.5617001079330677,
+    "risk_off": 7.726109442277064,
     "base": 2.7616375036136025e-05
   },
   "weights_used": {
     "risk_on": 0.9120929738156822,
     "risk_off": 0.08790702618431775
   },
-  "verdict": "COSMETIC: not significant at alpha=0.05. Regime-awareness provides no statistically detectable benefit over single pooled params. The sigma*1e-8 / sigma*1e-6 scaling hack likely drives this null result."
+  "verdict": "REGIME-AWARE IS WORSE: statistically significant cost increase. Per-regime params (sigma*1e-8 / sigma*1e-6 magic constants) hurt execution relative to pooled calibration."
 }
