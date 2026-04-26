@@ -263,179 +263,6 @@ def _fit_hmm_rolling_vol(
     return means, stds, A, pi, state_sequence
 
 
-# ═══════════════════════════════════════════════════════════════
-# Original manual Baum-Welch EM (kept for hmmlearn fallback chain)
-# ═══════════════════════════════════════════════════════════════
-
-def _log_normal_pdf(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:
-    """Log pdf of a univariate Gaussian, broadcast over *x*."""
-    return -0.5 * np.log(2 * np.pi) - np.log(sigma) - 0.5 * ((x - mu) / sigma) ** 2
-
-
-def _forward(log_emission: np.ndarray, log_A: np.ndarray,
-             log_pi: np.ndarray) -> tuple[np.ndarray, float]:
-    """Forward algorithm in log space."""
-    T, K = log_emission.shape
-    log_alpha = np.full((T, K), -np.inf)
-    log_alpha[0] = log_pi + log_emission[0]
-
-    for t in range(1, T):
-        for j in range(K):
-            log_alpha[t, j] = (
-                logsumexp(log_alpha[t - 1] + log_A[:, j])
-                + log_emission[t, j]
-            )
-    log_likelihood = float(logsumexp(log_alpha[-1]))
-    return log_alpha, log_likelihood
-
-
-def _backward(log_emission: np.ndarray, log_A: np.ndarray) -> np.ndarray:
-    """Backward algorithm in log space."""
-    T, K = log_emission.shape
-    log_beta = np.zeros((T, K))
-
-    for t in range(T - 2, -1, -1):
-        for i in range(K):
-            log_beta[t, i] = logsumexp(
-                log_A[i, :] + log_emission[t + 1] + log_beta[t + 1]
-            )
-    return log_beta
-
-
-def _viterbi(log_emission: np.ndarray, log_A: np.ndarray,
-             log_pi: np.ndarray) -> np.ndarray:
-    """Viterbi decoding — most likely state sequence."""
-    T, K = log_emission.shape
-    delta = np.full((T, K), -np.inf)
-    psi = np.zeros((T, K), dtype=int)
-
-    delta[0] = log_pi + log_emission[0]
-
-    for t in range(1, T):
-        for j in range(K):
-            scores = delta[t - 1] + log_A[:, j]
-            psi[t, j] = int(np.argmax(scores))
-            delta[t, j] = scores[psi[t, j]] + log_emission[t, j]
-
-    states = np.zeros(T, dtype=int)
-    states[-1] = int(np.argmax(delta[-1]))
-    for t in range(T - 2, -1, -1):
-        states[t] = psi[t + 1, states[t + 1]]
-    return states
-
-
-def _baum_welch(
-    x: np.ndarray,
-    n_states: int = 2,
-    n_iter: int = 200,
-    tol: float = 1e-4,
-    rng: np.random.Generator | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
-    """Baum-Welch EM for a univariate Gaussian HMM."""
-    if rng is None:
-        rng = np.random.default_rng(42)
-
-    T = len(x)
-    K = n_states
-
-    sorted_x = np.sort(x)
-    chunk = T // K
-    means = np.array([sorted_x[i * chunk:(i + 1) * chunk].mean() for i in range(K)])
-    stds = np.array([max(sorted_x[i * chunk:(i + 1) * chunk].std(), 1e-8) for i in range(K)])
-
-    means += rng.normal(0, stds * 0.1, size=K)
-    stds = np.abs(stds) + 1e-8
-
-    A = 0.7 * np.eye(K) + 0.3 / K
-    A /= A.sum(axis=1, keepdims=True)
-    pi = np.ones(K) / K
-
-    prev_ll = -np.inf
-
-    for iteration in range(n_iter):
-        log_emission = np.column_stack(
-            [_log_normal_pdf(x, means[k], stds[k]) for k in range(K)]
-        )
-        log_A = np.log(A + 1e-300)
-        log_pi = np.log(pi + 1e-300)
-
-        log_alpha, ll = _forward(log_emission, log_A, log_pi)
-        log_beta = _backward(log_emission, log_A)
-
-        if abs(ll - prev_ll) < tol:
-            break
-        prev_ll = ll
-
-        log_gamma = log_alpha + log_beta
-        log_gamma -= logsumexp(log_gamma, axis=1, keepdims=True)
-        gamma = np.exp(log_gamma)
-
-        xi = np.zeros((T - 1, K, K))
-        for t in range(T - 1):
-            for i in range(K):
-                for j in range(K):
-                    xi[t, i, j] = (
-                        log_alpha[t, i]
-                        + log_A[i, j]
-                        + log_emission[t + 1, j]
-                        + log_beta[t + 1, j]
-                    )
-            xi[t] -= logsumexp(xi[t].ravel())
-        xi = np.exp(xi)
-
-        pi = gamma[0] / gamma[0].sum()
-
-        for k in range(K):
-            gamma_k_sum = gamma[:, k].sum()
-            if gamma_k_sum < 1e-10:
-                continue
-            means[k] = (gamma[:, k] * x).sum() / gamma_k_sum
-            diff = x - means[k]
-            stds[k] = np.sqrt((gamma[:, k] * diff ** 2).sum() / gamma_k_sum)
-            stds[k] = max(stds[k], 1e-8)
-
-        for i in range(K):
-            xi_i_sum = xi[:, i, :].sum(axis=0)
-            denom = xi_i_sum.sum()
-            if denom > 1e-10:
-                A[i] = xi_i_sum / denom
-
-    return means, stds, A, pi, prev_ll
-
-
-def _fit_hmm_manual(
-    returns: np.ndarray,
-    n_regimes: int = 2,
-    n_init: int = 5,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Fit a Gaussian HMM using multiple random restarts of Baum-Welch."""
-    best_ll = -np.inf
-    best_result = None
-
-    for seed in range(n_init):
-        rng = np.random.default_rng(seed)
-        try:
-            means, stds, A, pi, ll = _baum_welch(
-                returns, n_states=n_regimes, n_iter=200, rng=rng,
-            )
-        except Exception:
-            continue
-        if ll > best_ll:
-            best_ll = ll
-            best_result = (means, stds, A, pi)
-
-    if best_result is None:
-        raise RuntimeError("All Baum-Welch initialisations failed to converge.")
-
-    means, stds, A, pi = best_result
-
-    log_emission = np.column_stack(
-        [_log_normal_pdf(returns, means[k], stds[k]) for k in range(n_regimes)]
-    )
-    states = _viterbi(log_emission, np.log(A + 1e-300), np.log(pi + 1e-300))
-
-    return means, stds, A, pi, states
-
 
 def _fit_hmm_hmmlearn(
     returns: np.ndarray,
@@ -790,6 +617,13 @@ def fit_hmm(
         else:
             impact_scale = sigma_scale
 
+        # γ scaled linearly with regime "impact intensity" (Kyle (1985):
+        #   λ ∝ σ_v).  η scaled by the PRODUCT impact_scale × sigma_scale —
+        #   this is a HEURISTIC, not from first principles.  The argument
+        #   is "η is impact × volatility-of-volatility envelope", but
+        #   empirically (audit 2026-04-26) it differs from per-regime
+        #   OLS by up to 10×.  Prefer ``regime_aware_params(impact_overrides=...)``
+        #   when ``data/regime_conditional_impact.json`` is available.
         gamma_scale = impact_scale
         eta_scale = impact_scale * sigma_scale
 

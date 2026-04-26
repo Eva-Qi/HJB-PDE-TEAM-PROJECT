@@ -19,6 +19,24 @@ import numpy as np
 from shared.params import ACParams
 
 
+# ── Fallback constants (centralized 2026-04-26) ──────────────────────
+# Used when estimation fails (insufficient data, exception, OLS r² out
+# of acceptable window). These MUST match
+# scripts/walk_forward_validation.py — historically gamma was 1e-4 here
+# but 2.5 there, a 25,000× unit mismatch that silently dragged AC
+# trajectory toward TWAP whenever per-regime fallback fired.
+#
+# gamma = 2.5  $/BTC   (Kyle's-λ bar-level ballpark on BTCUSDT)
+# eta   = 1e-3 $/BTC^α (Almgren et al. (2005) crypto-adapted)
+# alpha = 0.6          (Almgren et al. (2005) crypto-adapted)
+# sigma_floor = 0.01   (1% annualised — prevents sinh(0)/sinh(0)=NaN
+#                       in AC closed-form when fallback fires)
+FALLBACK_GAMMA = 2.5
+FALLBACK_ETA = 1e-3
+FALLBACK_ALPHA = 0.6
+FALLBACK_SIGMA_FLOOR = 0.01
+
+
 def estimate_kyle_lambda(
     delta_prices: np.ndarray,
     signed_flows: np.ndarray,
@@ -133,7 +151,7 @@ def estimate_kyle_lambda_aggregated(
     which is economically absurd ("buys push price down"). The tick-level
     estimator has been empirically observed to return γ ≈ -0.01 on real
     BTCUSDT data; `calibrated_params()` then silently falls back to the
-    literature constant γ=1e-4.
+    literature constant γ=FALLBACK_GAMMA (2.5 $/BTC).
 
     Aggregating to 1-minute buckets and regressing net_flow vs
     price_change recovers economically-sensible positive γ (~2.5 per BTC
@@ -483,7 +501,15 @@ class CalibrationResult:
     """
 
     params: ACParams
-    sources: dict  # e.g. {"sigma": "estimated", "gamma": "estimated", "eta": "fallback", "alpha": "fallback"}
+    sources: dict  # e.g. {"sigma": "estimated", "gamma": "aggregated_1min",
+    #                       "eta": "fallback", "alpha": "fallback"}.
+    # Possible values per key:
+    #   sigma : "estimated", "insufficient_data" (floored), "error"
+    #   gamma : "aggregated_1min", "aggregated_5min", "tick_level",
+    #           "fallback" (FALLBACK_GAMMA), "insufficient_data", "error"
+    #   eta   : "aggregated_1min", "aggregated_5min", "trade_level",
+    #           "fallback" (FALLBACK_ETA), "insufficient_data", "error"
+    #   alpha : same source as eta (set together by impact regression)
     warnings: list
     sigma_rs: float | None = None
     n_trades: int | None = None
@@ -627,24 +653,26 @@ def calibrated_params_per_regime(
 
         # Need enough data for calibration to be meaningful
         if len(sub) < 200:
-            # Return a fallback CalibrationResult with a documenting warning
+            # Return a fallback CalibrationResult with a documenting warning.
+            # NB: sigma must NOT be 0 — AC kappa, sinh(kappa·T) and HJB
+            # PDE all blow up at sigma→0.
             fallback_params = ACParams(
                 S0=float(trades_df["price"].iloc[-1]),
-                sigma=0.0,
+                sigma=FALLBACK_SIGMA_FLOOR,
                 mu=0.0,
                 X0=X0,
                 T=T,
                 N=N,
-                gamma=1e-4,
-                eta=1e-3,
-                alpha=0.6,
+                gamma=FALLBACK_GAMMA,
+                eta=FALLBACK_ETA,
+                alpha=FALLBACK_ALPHA,
                 lam=lam,
                 fee_bps=7.5,
             )
             results[regime_label] = CalibrationResult(
                 params=fallback_params,
                 sources={
-                    "sigma": "insufficient_data",
+                    "sigma": "insufficient_data_floor",
                     "gamma": "insufficient_data",
                     "eta": "insufficient_data",
                     "alpha": "insufficient_data",
@@ -652,7 +680,8 @@ def calibrated_params_per_regime(
                 warnings=[
                     f"Regime {regime_label}: only {len(sub)} trades — "
                     "too few for stable calibration (need ≥ 200). "
-                    "Returned fallback literature constants."
+                    f"Returned fallback (γ={FALLBACK_GAMMA}, η={FALLBACK_ETA}, "
+                    f"α={FALLBACK_ALPHA}, σ_floor={FALLBACK_SIGMA_FLOOR})."
                 ],
                 sigma_rs=None,
                 n_trades=len(sub),
@@ -699,11 +728,11 @@ def calibrated_params_per_regime(
                         f"[gamma {freq}] failed ({exc}) for regime {regime_label}"
                     )
             if gamma_sub is None:
-                gamma_sub = 1e-4
+                gamma_sub = FALLBACK_GAMMA
                 gamma_source = "fallback"
                 sub_warnings.append(
                     f"Regime {regime_label}: all gamma methods failed — "
-                    "using literature fallback γ=1e-4"
+                    f"using literature fallback γ={FALLBACK_GAMMA}"
                 )
 
             # Temporary impact
@@ -726,11 +755,12 @@ def calibrated_params_per_regime(
                         f"[impact {freq}] failed ({exc}) for regime {regime_label}"
                     )
             if eta_sub is None:
-                eta_sub, alpha_sub = 1e-3, 0.6
+                eta_sub, alpha_sub = FALLBACK_ETA, FALLBACK_ALPHA
                 impact_source = "fallback"
                 sub_warnings.append(
                     f"Regime {regime_label}: all impact methods failed — "
-                    "using literature fallback eta=1e-3 alpha=0.6"
+                    f"using literature fallback eta={FALLBACK_ETA} "
+                    f"alpha={FALLBACK_ALPHA}"
                 )
 
             S0 = float(sub["price"].iloc[-1])
@@ -769,14 +799,14 @@ def calibrated_params_per_regime(
         except Exception as exc:
             fallback_params = ACParams(
                 S0=float(trades_df["price"].iloc[-1]),
-                sigma=0.0,
+                sigma=FALLBACK_SIGMA_FLOOR,
                 mu=0.0,
                 X0=X0,
                 T=T,
                 N=N,
-                gamma=1e-4,
-                eta=1e-3,
-                alpha=0.6,
+                gamma=FALLBACK_GAMMA,
+                eta=FALLBACK_ETA,
+                alpha=FALLBACK_ALPHA,
                 lam=lam,
                 fee_bps=7.5,
             )
@@ -907,10 +937,10 @@ def calibrated_params(
             )
         else:
             msg = (f"ALL gamma methods failed (tick={g_tick}); using "
-                   f"literature fallback γ=1e-4 — downstream AC "
+                   f"literature fallback γ={FALLBACK_GAMMA} — downstream AC "
                    f"trajectory will be dominated by this magic constant")
             warnings.append(msg)
-            gamma = 1e-4
+            gamma = FALLBACK_GAMMA
             sources["gamma"] = "fallback"
 
     # 4. Temporary impact → (eta, alpha)

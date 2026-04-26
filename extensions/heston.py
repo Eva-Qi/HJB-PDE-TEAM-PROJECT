@@ -182,42 +182,6 @@ def fft_call_price(
     return strikes, call_prices, price_at_target
 
 
-def calibrate_heston(
-    market_strikes: np.ndarray,
-    market_prices: np.ndarray,
-    S0: float,
-    r: float,
-    T: float,
-) -> HestonParams:
-    """HW2 reference — options-based calibration.
-
-    Not used in this project; see calibrate_heston_from_spot() instead.
-
-    Minimizes sum of squared pricing errors using scipy.optimize.
-
-    Parameters
-    ----------
-    market_strikes : np.ndarray
-        Observed option strikes.
-    market_prices : np.ndarray
-        Observed option prices.
-    S0, r, T : float
-        Market conditions.
-
-    Returns
-    -------
-    HestonParams
-        Calibrated parameters.
-    """
-    raise NotImplementedError(
-        "Part D: implement Heston calibration via scipy.optimize.minimize.\n"
-        "Objective: min sum((model_price - market_price)^2)\n"
-        "Use fft_call_price() for model prices.\n"
-        "Bounds: kappa>0, theta>0, xi>0, -1<rho<1, v0>0\n"
-        "Feller condition: 2*kappa*theta > xi^2"
-    )
-
-
 # ---------------------------------------------------------------------------
 # Q-measure calibration from options IV surface (Deribit BTC chain)
 # ---------------------------------------------------------------------------

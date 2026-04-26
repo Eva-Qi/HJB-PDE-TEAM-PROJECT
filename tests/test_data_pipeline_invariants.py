@@ -218,19 +218,38 @@ class TestFallbackConstantsExplicit:
         with pytest.raises(ValueError, match="non-finite"):
             fit_hmm(bad_returns)
 
-    def test_fallback_gamma_constant_value(self):
-        """If fallback triggers, gamma=1e-4. If this constant changes,
-        the test should fail so reviewer can re-validate the regime."""
-        # Force fallback by passing short, deterministic data with zero flow
-        import pandas as pd
-        fake_trades = pd.DataFrame({
-            "timestamp": pd.to_datetime(
-                ["2026-01-01 00:00:00", "2026-01-01 00:00:01"], utc=True,
-            ),
-            "price": [100.0, 100.0],
-            "quantity": [0.0, 0.0],  # zero flow → aggregator fails
-            "side": [1, -1],
-        })
-        result = estimate_kyle_lambda(np.array([0.0]), np.array([0.0]))
-        # estimate_kyle_lambda returns None on len<min_obs or zero variance
-        assert result is None
+    def test_fallback_constants_centralized_and_safe(self):
+        """Fallback constants live in calibration.impact_estimator and
+        downstream consumers (walk_forward_validation) import them rather
+        than redefine.  This test catches the historical 25,000× unit
+        mismatch (gamma=1e-4 in impact_estimator vs gamma=2.5 in
+        walk_forward — audit 2026-04-26).
+
+        Also verifies sigma floor is non-zero — sigma=0 would cause
+        sinh(0)/sinh(0)=NaN in AC closed-form whenever the fallback fires.
+        """
+        from calibration.impact_estimator import (
+            FALLBACK_GAMMA, FALLBACK_ETA, FALLBACK_ALPHA, FALLBACK_SIGMA_FLOOR,
+        )
+        # Sanity ranges (not exact equality — these may legitimately
+        # change, but only with explicit reviewer sign-off).
+        assert 1.0 <= FALLBACK_GAMMA <= 5.0, (
+            f"FALLBACK_GAMMA={FALLBACK_GAMMA} outside expected $/BTC range. "
+            "If you intentionally changed this, update the test bounds."
+        )
+        assert 1e-4 <= FALLBACK_ETA <= 1e-2, (
+            f"FALLBACK_ETA={FALLBACK_ETA} outside expected range."
+        )
+        assert 0.3 <= FALLBACK_ALPHA <= 1.0, (
+            f"FALLBACK_ALPHA={FALLBACK_ALPHA} outside Almgren et al. range [0.3, 1.0]."
+        )
+        # CRITICAL: σ floor must be strictly positive (zero breaks AC + HJB)
+        assert FALLBACK_SIGMA_FLOOR > 0.0, "σ floor must be > 0"
+
+        # walk_forward_validation should NOT redefine these — it should
+        # import them.  If both files define them independently they can
+        # drift (which is exactly what happened).
+        import scripts.walk_forward_validation as wfv
+        assert wfv.FALLBACK_GAMMA == FALLBACK_GAMMA
+        assert wfv.FALLBACK_ETA == FALLBACK_ETA
+        assert wfv.FALLBACK_ALPHA == FALLBACK_ALPHA

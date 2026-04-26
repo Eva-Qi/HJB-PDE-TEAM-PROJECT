@@ -47,6 +47,9 @@ from calibration.impact_estimator import (
     estimate_realized_vol_gk,
     estimate_kyle_lambda,
     estimate_temporary_impact_aggregated,
+    FALLBACK_GAMMA,
+    FALLBACK_ETA,
+    FALLBACK_ALPHA,
 )
 from montecarlo.strategies import twap_trajectory
 from montecarlo.sde_engine import simulate_execution
@@ -74,14 +77,9 @@ SPLITS = [
     ("Split-6 May→Jun 2025",  "2025-05-01", "2025-05-28", "2025-05-29", "2025-06-27"),
 ]
 
-# Literature fallbacks (used when estimation fails on short window)
-# Units: gamma in $/BTC (Kyle's lambda), eta in $/BTC^alpha, alpha dimensionless.
-# gamma ≈ 2.5 $/BTC is the BTCUSDT bar-level ballpark from calibrated_params()
-# and regime_conditional_impact.json. Previous 1e-4 was a legacy 1/BTC-convention
-# value that produced a permanent-impact term ~5 orders of magnitude too small.
-FALLBACK_GAMMA = 2.5
-FALLBACK_ETA   = 1e-3
-FALLBACK_ALPHA = 0.6
+# Literature fallback constants now imported from calibration.impact_estimator
+# (single source of truth — see audit 2026-04-26 for the 25,000× unit-mismatch
+# bug that motivated centralisation).
 
 
 def load_window_aggregated(start: str, end: str, ohlc_freq: str = "5min"):
@@ -497,11 +495,8 @@ def run_split(label: str, train_start: str, train_end: str,
         eta=train_cal["eta"],
         alpha=train_cal["alpha"],
         # Trajectory method used — "closed_form" iff |alpha-1|<0.01, else "hjb_pde".
-        # Replaces the previous `used_linear_approx` flag which was always True
-        # and reflected a broken fallback (invalid closed-form on non-linear data).
         ac_method=method,
         ac_method_note=method_note,
-        used_linear_approx=False,  # retained for backward-compat; always False now
         # in-sample
         is_cost_opt=round(is_cost_opt, 6),
         is_cost_twap=round(is_cost_twap, 6),
