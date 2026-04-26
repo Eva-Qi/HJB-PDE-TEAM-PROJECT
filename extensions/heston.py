@@ -338,7 +338,8 @@ def calibrate_heston_from_options(
     atm_only: bool = False,
     seed: int = 42,
     use_bid_ask: bool = True,
-    use_oi_weights: bool = True,
+    use_oi_weights: bool = False,
+    weighting: str = "uniform",
 ) -> HestonParams:
     """Calibrate Heston (κ, θ, ξ, ρ, v₀) from Q-measure option IV surface.
 
@@ -354,10 +355,24 @@ def calibrate_heston_from_options(
         - Drop contracts with bid_iv == 0 (no bid, untradeable)
         - Drop contracts with bid-ask spread / mark_iv > 0.5 (too wide)
 
-    Loss weights w_i:
-        - If use_oi_weights=True and open_interest column is present with
-          non-zero total OI: w_i = OI_i / sum(OI)  (OI-weighted RMSE)
-        - Otherwise: w_i = 1/n  (uniform, equivalent to unweighted sum/n)
+    Loss weights w_i are controlled by the ``weighting`` argument (new
+    default is "uniform").  The legacy ``use_oi_weights`` flag is honoured
+    only when ``weighting="uniform"`` (the default): if ``use_oi_weights``
+    is explicitly set to True, it promotes the scheme to "oi" to preserve
+    backward-compatible behaviour.
+
+    Weighting modes:
+        - "uniform"     : w_i = 1/n (equal weight; new default).
+        - "oi"          : w_i = OI_i / sum(OI) (open-interest-weighted).
+                          NOTE: OI on Deribit concentrates in ATM (~50%
+                          in |delta| ∈ [0.3, 0.7]), which kills wing
+                          information — this weighting destroys ρ
+                          identification.  Kept for backward comparison.
+        - "vega_inverse": w_i = 1 / max(vega_i, 1e-6) using BS vega at
+                          current mark_iv; upweights wings where vega is
+                          small.  NOT IMPLEMENTED — TODO: add BS-vega
+                          helper and route here.  Falls back to "uniform"
+                          with a warning for now.
 
     Parameters
     ----------
@@ -384,8 +399,11 @@ def calibrate_heston_from_options(
         If True (default), use mid-IV = (bid_iv + ask_iv)/2 when available
         and apply liquidity filters.  If False, use mark_iv only.
     use_oi_weights : bool
-        If True (default), weight loss by open_interest when available.
-        If False, use uniform weights.
+        LEGACY flag — when True AND weighting=="uniform", switches weighting
+        mode to "oi" for backward compatibility.  New code should set
+        ``weighting`` directly.  Default False.
+    weighting : {"uniform", "oi", "vega_inverse"}
+        Loss-weight scheme (see "Loss weights" above).  Default "uniform".
 
     Returns
     -------
@@ -405,9 +423,27 @@ def calibrate_heston_from_options(
     # Drop missing IVs
     df = df[df["mark_iv"].notna() & (df["mark_iv"] > 0)].copy()
 
-    # Only calls (puts carry same info via put-call parity; calls are more
-    # liquid ATM; mixing both can double-weight some strikes)
-    df = df[df["kind"] == "C"].copy()
+    # OTM-only selection (NOT calls-only):
+    #   keep CALL if strike >= forward (= underlying_price since r=q=0)
+    #   keep PUT  if strike <= forward
+    # This gives both wings while avoiding the redundant ITM region.
+    # Why OTM-only rather than calls-only: Deribit mark_iv is interpolated
+    # *independently* for calls and puts — a calls-only chain produces a
+    # nearly symmetric smile (no asymmetry signal), which kills ρ
+    # identification.  Using OTM from both sides recovers the true put-wing
+    # elevation vs call-wing flattening that carries the ρ information.
+    forward = S0  # r = q = 0 for crypto
+    is_otm_call = (df["kind"] == "C") & (df["strike"] >= forward)
+    is_otm_put = (df["kind"] == "P") & (df["strike"] <= forward)
+    df = df[is_otm_call | is_otm_put].copy()
+
+    n_calls_kept = int((df["kind"] == "C").sum())
+    n_puts_kept = int((df["kind"] == "P").sum())
+    print(
+        f"[calibrate_heston_from_options] OTM filter: "
+        f"{n_calls_kept} OTM/ATM calls + {n_puts_kept} OTM/ATM puts "
+        f"(forward={forward:.2f}); both wings present for ρ identification"
+    )
 
     # Maturity window: 7 days to 180 days
     T_min = 7 / 365.25
@@ -469,28 +505,60 @@ def calibrate_heston_from_options(
         )
 
     # ------------------------------------------------------------------ #
-    # Step 1c — OI weights                                               #
+    # Step 1c — Loss weighting (uniform / oi / vega_inverse)             #
     # ------------------------------------------------------------------ #
-    has_oi = (
-        use_oi_weights
-        and "open_interest" in df.columns
-        and df["open_interest"].notna().any()
-        and df["open_interest"].sum() > 0
-    )
+    # Backward-compat bridge: legacy flag use_oi_weights=True promotes the
+    # default "uniform" scheme to "oi".  Explicit `weighting` argument wins.
+    _weighting = weighting
+    if use_oi_weights and weighting == "uniform":
+        _weighting = "oi"
 
-    if has_oi:
-        oi_vals = df["open_interest"].fillna(0.0).clip(lower=0.0)
-        total_oi = oi_vals.sum()
-        df["_weight"] = oi_vals / total_oi if total_oi > 0 else 1.0 / len(df)
+    if _weighting not in {"uniform", "oi", "vega_inverse"}:
+        raise ValueError(
+            f"Unknown weighting scheme '{_weighting}'. "
+            f"Expected one of: 'uniform', 'oi', 'vega_inverse'."
+        )
+
+    if _weighting == "vega_inverse":
+        # TODO: implement BS vega via _bs_vega helper then set
+        # w_i = 1.0 / max(vega_i, 1e-6).  Falls back to uniform for now.
+        warnings.warn(
+            "calibrate_heston_from_options: weighting='vega_inverse' is "
+            "not implemented yet; falling back to 'uniform'. "
+            "(TODO: implement BS-vega helper.)"
+        )
+        _weighting = "uniform"
+
+    if _weighting == "oi":
+        has_oi = (
+            "open_interest" in df.columns
+            and df["open_interest"].notna().any()
+            and df["open_interest"].sum() > 0
+        )
+        if has_oi:
+            oi_vals = df["open_interest"].fillna(0.0).clip(lower=0.0)
+            total_oi = oi_vals.sum()
+            df["_weight"] = oi_vals / total_oi if total_oi > 0 else 1.0 / len(df)
+        else:
+            warnings.warn(
+                "calibrate_heston_from_options: weighting='oi' requested "
+                "but open_interest missing/zero; falling back to 'uniform'."
+            )
+            df["_weight"] = 1.0 / len(df)
+            _weighting = "uniform"
     else:
+        # uniform
         df["_weight"] = 1.0 / len(df)
 
     if atm_only:
         df = df[(df["strike"] >= S0 * 0.80) & (df["strike"] <= S0 * 1.20)].copy()
     else:
-        # Delta filter: compute approximate BS delta at market_iv, keep if in range
+        # Delta filter: compute approximate BS delta at market_iv, keep if in range.
+        # Delta is computed with respect to the contract's own kind (C or P) so
+        # OTM puts with delta magnitude in the valid range are retained.
         def _delta_ok(row):
-            d = _bs_delta(S0, row["strike"], row["T"], r, q, row["market_iv"], is_call=True)
+            is_call = (row["kind"] == "C")
+            d = _bs_delta(S0, row["strike"], row["T"], r, q, row["market_iv"], is_call=is_call)
             return delta_filter[0] <= abs(d) <= delta_filter[1]
 
         mask = df.apply(_delta_ok, axis=1)
@@ -508,6 +576,20 @@ def calibrate_heston_from_options(
         df["_weight"] = df["_weight"] / w_sum
     else:
         df["_weight"] = 1.0 / len(df)
+
+    # Weighting diagnostic: share of total weight in ATM vs wings.
+    # ATM  = moneyness m = K/S0 in [0.9, 1.1]
+    # Wing = everything else (|m - 1| > 0.1)
+    moneyness = df["strike"] / S0
+    atm_mask = (moneyness >= 0.9) & (moneyness <= 1.1)
+    atm_weight_share = float(df.loc[atm_mask, "_weight"].sum())
+    wing_weight_share = float(df.loc[~atm_mask, "_weight"].sum())
+    print(
+        f"[calibrate_heston_from_options] weighting={_weighting}; "
+        f"ATM_weight={atm_weight_share * 100:.1f}%, "
+        f"wing_weight={wing_weight_share * 100:.1f}% "
+        f"(ATM = moneyness in [0.9, 1.1])"
+    )
 
     # Build a list of (K, T, market_iv, weight) tuples
     # Group by expiry T (round to 4 decimals to cluster same-expiry options)
@@ -574,10 +656,14 @@ def calibrate_heston_from_options(
     # ------------------------------------------------------------------ #
     # Step 3 — bounds + multi-start L-BFGS-B with Feller-aware selection #
     # ------------------------------------------------------------------ #
+    # xi lower bound raised from 0.01 to 0.3: BTC realistic minimum vol-of-vol
+    # is ~0.5; 0.3 keeps a safety margin.  Values below this push the variance
+    # process towards deterministic, which makes ρ a flat direction in the
+    # loss — the optimizer then parks ρ at whatever value it started near.
     bounds = [
         (0.1, 10.0),    # kappa
         (0.01, 2.0),    # theta
-        (0.01, 3.0),    # xi
+        (0.3, 3.0),     # xi  (lower bound raised from 0.01 → 0.3)
         (-0.99, 0.99),  # rho
         (0.01, 2.0),    # v0
     ]
@@ -590,23 +676,27 @@ def calibrate_heston_from_options(
 
     rng = np.random.default_rng(seed)
 
-    # Seed the first start near a sensible "crypto" prior to speed convergence
-    starts = []
-    # Rough ATM IV from chain
+    # Rough ATM IV from chain (used to initialise theta / v0)
     atm_iv_approx = float(df.loc[
         (df["strike"] - S0).abs().idxmin(), "market_iv"
     ]) if len(df) > 0 else 0.80
     v0_prior = atm_iv_approx**2  # variance ≈ IV²
+    theta_prior = max(v0_prior, 0.04)
 
-    # Literature prior (start 0): moderate kappa, low xi, slightly negative rho
-    starts.append([2.0, v0_prior, 0.5 * atm_iv_approx, -0.3, v0_prior])
+    # Diverse deterministic seeds spanning the (ρ, ξ) plane.  Each seed lives
+    # in a distinct basin so the optimizer can escape the low-ξ degenerate
+    # basin that collapses ρ identification.  We include one positive-ρ seed
+    # (start 2) to confirm the optimizer can leave that basin when the data
+    # prefers negative ρ.
+    starts = []
+    starts.append([2.0, theta_prior, 0.4, -0.3, v0_prior])  # start 0
+    starts.append([2.0, theta_prior, 1.0, -0.7, v0_prior])  # start 1
+    starts.append([2.0, theta_prior, 0.6, +0.1, v0_prior])  # start 2
+    starts.append([2.0, theta_prior, 1.5, -0.5, v0_prior])  # start 3
 
-    # Additional deterministic prior (start 1): BTC leverage-effect prior with
-    # low vol-of-vol — explicitly avoids the high-xi pathological basin
-    starts.append([3.0, max(v0_prior, 0.04), 0.1, -0.5, max(v0_prior, 0.04)])
-
-    # Random starts fill remaining slots
-    for _ in range(max(0, n_starts - 2)):
+    # Random starts fill any remaining slots (draws respect the new bounds,
+    # so xi is sampled from [0.3, 3.0]).
+    for _ in range(max(0, n_starts - 4)):
         p0 = [
             rng.uniform(lo, hi) for lo, hi in bounds
         ]
@@ -701,6 +791,26 @@ def calibrate_heston_from_options(
             f"feller_margin={feller_margin_final:.4f}, "
             f"healthy_starts={n_healthy}/{n_total}"
         )
+
+    # Boundary-hit warning: if any final parameter is pinned at its bound,
+    # the optimum is likely outside the feasible region and the calibration
+    # should be re-examined (e.g., bounds too tight, or data degenerate).
+    param_names = ("kappa", "theta", "xi", "rho", "v0")
+    param_values = (kappa, theta, xi, rho, v0)
+    BOUND_TOL = 1e-6
+    for name, value, (lo, hi) in zip(param_names, param_values, bounds):
+        if abs(value - lo) < BOUND_TOL:
+            warnings.warn(
+                f"calibrate_heston_from_options: parameter '{name}' pinned "
+                f"at lower bound ({lo}). Value={value:.6f}. "
+                f"The true optimum likely lies outside the feasible region."
+            )
+        elif abs(value - hi) < BOUND_TOL:
+            warnings.warn(
+                f"calibrate_heston_from_options: parameter '{name}' pinned "
+                f"at upper bound ({hi}). Value={value:.6f}. "
+                f"The true optimum likely lies outside the feasible region."
+            )
 
     return HestonParams(kappa=kappa, theta=theta, xi=xi, rho=rho, v0=v0)
 

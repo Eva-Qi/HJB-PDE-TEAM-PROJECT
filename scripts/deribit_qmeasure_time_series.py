@@ -142,7 +142,8 @@ def main() -> None:
                     n_starts=5,
                     delta_filter=(0.10, 0.90),
                     use_bid_ask=True,
-                    use_oi_weights=True,
+                    use_oi_weights=False,       # OI concentrates 50% in ATM → kills wings
+                    weighting="uniform",        # explicit (new default)
                     seed=42,
                 )
             except Exception as exc:
@@ -152,9 +153,13 @@ def main() -> None:
         elapsed = time.time() - t0
         feller_margin = 2.0 * params.kappa * params.theta - params.xi**2
 
-        # Build filtered df with market_iv for RMSE calculation
-        # Re-run the same filtering logic to get aligned chain
-        df_filt = df[df["mark_iv"].notna() & (df["mark_iv"] > 0) & (df["kind"] == "C")].copy()
+        # Build filtered df with market_iv for RMSE calculation.
+        # Mirror the OTM filter applied inside calibrate_heston_from_options
+        # so the RMSE is computed on the same contracts the optimizer saw.
+        df_filt = df[df["mark_iv"].notna() & (df["mark_iv"] > 0)].copy()
+        otm_call = (df_filt["kind"] == "C") & (df_filt["strike"] >= S0)
+        otm_put = (df_filt["kind"] == "P") & (df_filt["strike"] <= S0)
+        df_filt = df_filt[otm_call | otm_put].copy()
         T_min = 7 / 365.25
         T_max = 180 / 365.25
         df_filt = df_filt[(df_filt["T"] >= T_min) & (df_filt["T"] <= T_max)].copy()

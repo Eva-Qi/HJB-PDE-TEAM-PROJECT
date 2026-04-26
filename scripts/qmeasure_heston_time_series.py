@@ -157,8 +157,14 @@ def _compute_heston_rmse(
 def main() -> None:
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Discover all Tardis monthly snapshot files
-    snapshot_files = sorted(DATA_DIR.glob("tardis_deribit_options_*.json"))
+    # Discover all Tardis monthly snapshot files (BTC only — ETH skipped for now;
+    # the cross-source ρ comparison with IBIT is BTC-only).
+    all_files = sorted(DATA_DIR.glob("tardis_deribit_options_*.json"))
+    snapshot_files = [f for f in all_files if "_ETH_" not in f.name]
+    print(
+        f"[qmeasure_ts] Filtering to BTC-only: "
+        f"{len(snapshot_files)}/{len(all_files)} files (skipping ETH for runtime)"
+    )
 
     if not snapshot_files:
         print(
@@ -205,10 +211,11 @@ def main() -> None:
                     underlying_price=S0,
                     r=0.0,
                     q=0.0,
-                    n_starts=8,
+                    n_starts=4,  # 4 deterministic diverse seeds, no random fillers
                     delta_filter=(0.10, 0.90),
                     use_bid_ask=False,   # Tardis quotes don't include bid_iv/ask_iv in decimal
                     use_oi_weights=False,  # no OI in Tardis quote stream
+                    weighting="uniform",  # explicit (new default)
                     seed=42,
                 )
             except Exception as exc:
@@ -221,12 +228,16 @@ def main() -> None:
         feller_ok = feller_lhs >= feller_rhs
         feller_margin = feller_lhs - feller_rhs
 
-        # RMSE on the filtered chain
+        # RMSE on the filtered chain (mirrors the OTM filter applied inside
+        # calibrate_heston_from_options so the RMSE is computed on the same
+        # contracts the optimizer saw).
         df_filt = df[
             df["mark_iv"].notna()
             & (df["mark_iv"] > 0)
-            & (df["kind"] == "C")
         ].copy()
+        otm_call = (df_filt["kind"] == "C") & (df_filt["strike"] >= S0)
+        otm_put = (df_filt["kind"] == "P") & (df_filt["strike"] <= S0)
+        df_filt = df_filt[otm_call | otm_put].copy()
         T_min = 7 / 365.25
         T_max = 180 / 365.25
         df_filt = df_filt[(df_filt["T"] >= T_min) & (df_filt["T"] <= T_max)].copy()
@@ -256,16 +267,37 @@ def main() -> None:
             f"xi={params.xi:.4f}  rho={params.rho:.4f}  v0={params.v0:.4f}\n"
             f"  feller={'OK' if feller_ok else 'VIOLATED'}  "
             f"fit_rmse={('nan' if np.isnan(rmse) else f'{rmse:.4f}')}  "
-            f"elapsed={elapsed:.1f}s"
+            f"elapsed={elapsed:.1f}s",
+            flush=True,
         )
         for wr in w_list:
-            print(f"  WARN: {wr.message}")
+            print(f"  WARN: {wr.message}", flush=True)
+
+        # Incremental save — write partial JSON after each snapshot completes.
+        # Allows recovery if the script is interrupted mid-loop.
+        with open(OUTPUT_PATH, "w") as f_partial:
+            json.dump(
+                {
+                    "code_version": "post-3-bug-fix-2026-04-25",
+                    "n_complete": len(records),
+                    "results": records,
+                },
+                f_partial, indent=2,
+            )
+        print(f"  [partial save: {len(records)} records → {OUTPUT_PATH.name}]", flush=True)
 
     # ------------------------------------------------------------------ #
-    # Save JSON                                                           #
+    # Save JSON (final form — overwrites partial saves with same content)#
     # ------------------------------------------------------------------ #
     with open(OUTPUT_PATH, "w") as f:
-        json.dump(records, f, indent=2)
+        json.dump(
+            {
+                "code_version": "post-3-bug-fix-2026-04-25",
+                "n_complete": len(records),
+                "results": records,
+            },
+            f, indent=2,
+        )
     print(f"\n[qmeasure_ts] Saved {len(records)} records → {OUTPUT_PATH.name}")
 
     if not records:

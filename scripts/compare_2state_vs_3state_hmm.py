@@ -39,49 +39,59 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILES = sorted(DATA_DIR.glob("BTCUSDT-aggTrades-2026-*.csv"))
 
 
-def _fit_and_score(returns: np.ndarray, n_regimes: int) -> dict:
+def _fit_and_score(
+    returns: np.ndarray,
+    n_regimes: int,
+    n_init: int = 15,
+    duplicate_sigma_ratio_threshold: float = 1.15,
+) -> dict:
     """Fit an n-state HMM and return diagnostics including BIC.
 
-    For BIC computation we use hmmlearn's total log-likelihood directly.
-    We take the BEST-SCORING converged model across 15 random restarts
-    (not filtered by state occupancy) so that the likelihood comparison
-    is apples-to-apples.  Occupancy collapse is itself a finding — if the
-    best 3-state model still puts <1% of data in a third state, that is
-    evidence the data is really bimodal.
+    Two filters reject degenerate fits during the multi-restart search:
+      1. Occupancy collapse: any state with <1% of observations.
+      2. Duplicate-state collapse: any two states whose σ ratio < threshold
+         (default 1.15) — i.e., two states are statistically indistinguishable.
+
+    BIC is computed on the BEST log-likelihood model that passes both filters.
+    If no fit passes for a given K, we record bic=None and
+    rejected_no_valid_fit=True — strong evidence the data does not support
+    K distinct regimes.
 
     Parameters
     ----------
     returns : np.ndarray
-        1-D log-return series.
+        1-D feature series (raw log returns or a derived feature like log-vol).
     n_regimes : int
         Number of HMM states.
-
-    Returns
-    -------
-    dict with keys: n_regimes, log_likelihood, bic, n_params, regimes_info,
-        collapsed (bool — True if best model has a phantom state < 1% of T)
+    n_init : int
+        Number of random restarts.
+    duplicate_sigma_ratio_threshold : float
+        Reject fits where any two states have σ ratio below this threshold.
+        1.15 means: states must differ in σ by at least 15% to count as distinct.
     """
     import warnings
 
     T = len(returns)
-
-    # Free parameters for a K-state univariate Gaussian HMM:
-    #   transitions: K*(K-1)  (each row sums to 1, so K-1 free per row)
-    #   means:       K
-    #   variances:   K
-    #   initial:     K-1   (sums to 1)
     K = n_regimes
     n_params = K * (K - 1) + K + K + (K - 1)
 
     log_likelihood = None
-    collapsed = False
-    n_init = 15  # enough restarts to sample the likelihood landscape
+    bic = None
+    occupancy_collapsed = False
+    duplicate_collapsed = False
+    rejected_no_valid_fit = False
+    n_converged = 0
+    n_rejected_occupancy = 0
+    n_rejected_duplicate = 0
+    min_sigma_ratio_observed = float("inf")
+    best_model_min_state_frac = None
+    best_model_min_sigma_ratio = None
 
-    # Use hmmlearn for log-likelihood (best-scoring convergent model, no occupancy filter)
     if _HAS_HMMLEARN:
         best_score = -np.inf
         best_model = None
         X = returns.reshape(-1, 1)
+
         for seed in range(n_init):
             model = _GaussianHMM(
                 n_components=K,
@@ -98,19 +108,52 @@ def _fit_and_score(returns: np.ndarray, n_regimes: int) -> dict:
                 score = model.score(X)
             except Exception:
                 continue
+            n_converged += 1
+
+            # Track diagnostics across all converged fits
+            counts = np.bincount(model.predict(X), minlength=K)
+            min_frac = counts.min() / T
+            state_sigmas = np.sqrt(model.covars_.reshape(K, -1)[:, 0])
+            sorted_sigmas = np.sort(state_sigmas)
+            if K > 1:
+                ratios = sorted_sigmas[1:] / np.maximum(sorted_sigmas[:-1], 1e-12)
+                min_ratio = float(ratios.min())
+                if min_ratio < min_sigma_ratio_observed:
+                    min_sigma_ratio_observed = min_ratio
+            else:
+                min_ratio = float("inf")
+
+            # Filter 1: occupancy collapse (<1% in any state)
+            if min_frac < 0.01:
+                n_rejected_occupancy += 1
+                continue
+
+            # Filter 2: duplicate-state collapse (σ ratio < threshold)
+            if K > 1 and min_ratio < duplicate_sigma_ratio_threshold:
+                n_rejected_duplicate += 1
+                continue
+
             if score > best_score:
                 best_score = score
                 best_model = model
+                best_model_min_state_frac = float(min_frac)
+                best_model_min_sigma_ratio = float(min_ratio)
 
         if best_model is not None:
-            log_likelihood = float(best_model.score(X)) * T  # total log-lik
-            counts = np.bincount(best_model.predict(X), minlength=K)
-            min_frac = counts.min() / T
-            # Flag if the best model has a "phantom" state (< 1% of data)
-            collapsed = bool(min_frac < 0.01)
+            # FIX 2026-04-26: hmmlearn's score(X) already returns total log-lik
+            # of the entire sequence (forward algorithm). Previous code multiplied
+            # by T which inflated by ~28000x — gave BIC values ~10^9 when true
+            # values are ~10^5.
+            log_likelihood = float(best_model.score(X))
+            bic = -2.0 * log_likelihood + n_params * np.log(T)
+            # Diagnostic flags (descriptive — best_model already passed both filters)
+            occupancy_collapsed = bool(best_model_min_state_frac < 0.05)
+            duplicate_collapsed = False
+        else:
+            rejected_no_valid_fit = True
 
-    # Fallback: approximate via per-state Gaussian emission (fit_hmm path)
-    if log_likelihood is None:
+    # Fallback: approximate via per-state Gaussian emission (only if hmmlearn unavailable)
+    if log_likelihood is None and not _HAS_HMMLEARN:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             regimes_fb, state_seq_fb = fit_hmm(returns, n_regimes=n_regimes)
@@ -126,30 +169,45 @@ def _fit_and_score(returns: np.ndarray, n_regimes: int) -> dict:
                     -0.5 * np.log(2 * np.pi) - np.log(sigma)
                     - 0.5 * ((sub - mu) / sigma) ** 2
                 ))
+        bic = -2.0 * log_likelihood + n_params * np.log(T)
 
-    bic = -2.0 * log_likelihood + n_params * np.log(T)
-
-    # Call fit_hmm for regime characterisation (separate from BIC model)
+    # Call fit_hmm for regime characterisation (separate from BIC model;
+    # uses production filter which may give different model than BIC fit)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        regimes, state_seq = fit_hmm(returns, n_regimes=n_regimes)
-
-    regimes_info = []
-    for r in regimes:
-        regimes_info.append({
-            "label": r.label,
-            "sigma_multiplier": float(r.sigma),
-            "state_vol": float(r.state_vol),
-            "probability": float(r.probability),
-        })
+        try:
+            regimes, state_seq = fit_hmm(returns, n_regimes=n_regimes)
+            regimes_info = [{
+                "label": r.label,
+                "sigma_multiplier": float(r.sigma),
+                "state_vol": float(r.state_vol),
+                "probability": float(r.probability),
+            } for r in regimes]
+        except Exception as e:
+            regimes_info = []
+            print(f"  WARNING: fit_hmm raised {type(e).__name__}: {e}")
 
     return {
         "n_regimes": n_regimes,
         "n_observations": T,
         "n_params": n_params,
-        "log_likelihood": float(log_likelihood),
-        "bic": float(bic),
-        "collapsed": collapsed,
+        "log_likelihood": float(log_likelihood) if log_likelihood is not None else None,
+        "bic": float(bic) if bic is not None else None,
+        "rejected_no_valid_fit": rejected_no_valid_fit,
+        "n_init": n_init,
+        "n_converged": n_converged,
+        "n_rejected_occupancy": n_rejected_occupancy,
+        "n_rejected_duplicate": n_rejected_duplicate,
+        "min_sigma_ratio_observed": (
+            float(min_sigma_ratio_observed)
+            if min_sigma_ratio_observed != float("inf") else None
+        ),
+        "duplicate_sigma_ratio_threshold": duplicate_sigma_ratio_threshold,
+        "best_model_min_state_frac": best_model_min_state_frac,
+        "best_model_min_sigma_ratio": best_model_min_sigma_ratio,
+        "occupancy_collapsed": occupancy_collapsed,
+        # legacy field name kept for backward compat with downstream consumers
+        "collapsed": rejected_no_valid_fit or occupancy_collapsed,
         "regimes": regimes_info,
     }
 
@@ -182,10 +240,10 @@ def main() -> None:
     print(f"  {T:,} 5-min return observations")
 
     # ── Fit 2-state and 3-state HMMs ─────────────────────────────────────
-    print("\nFitting 2-state HMM (10 random restarts)...")
+    print("\nFitting 2-state HMM (15 random restarts; reject occupancy <1% & σ ratio <1.15)...")
     result_2 = _fit_and_score(returns, n_regimes=2)
 
-    print("Fitting 3-state HMM (10 random restarts)...")
+    print("Fitting 3-state HMM (15 random restarts; reject occupancy <1% & σ ratio <1.15)...")
     result_3 = _fit_and_score(returns, n_regimes=3)
 
     # ── Print comparison table ────────────────────────────────────────────
@@ -195,42 +253,77 @@ def main() -> None:
     print(f"{'Model':<12} {'n_params':>10} {'log-lik':>14} {'BIC':>14}")
     print("-" * 52)
     for res in (result_2, result_3):
+        ll_str = f"{res['log_likelihood']:>14.1f}" if res['log_likelihood'] is not None else f"{'REJECTED':>14}"
+        bic_str = f"{res['bic']:>14.1f}" if res['bic'] is not None else f"{'REJECTED':>14}"
         print(
             f"  {res['n_regimes']}-state    "
             f"{res['n_params']:>10d} "
-            f"{res['log_likelihood']:>14.1f} "
-            f"{res['bic']:>14.1f}"
+            f"{ll_str} {bic_str}"
+        )
+
+    # Diagnostic: restart accounting + min sigma ratio
+    print()
+    for res in (result_2, result_3):
+        print(
+            f"  {res['n_regimes']}-state restart audit: "
+            f"converged={res['n_converged']}/{res['n_init']}, "
+            f"rejected_occupancy={res['n_rejected_occupancy']}, "
+            f"rejected_duplicate_state={res['n_rejected_duplicate']}, "
+            f"min_σ_ratio_observed={res['min_sigma_ratio_observed']:.3f}"
+            if res['min_sigma_ratio_observed'] is not None
+            else f"  {res['n_regimes']}-state restart audit: 0 converged"
         )
 
     bic_2 = result_2["bic"]
     bic_3 = result_3["bic"]
-    delta_bic = bic_3 - bic_2
-
-    if result_3["collapsed"]:
-        print(
-            "\n  NOTE: Best 3-state hmmlearn model has a phantom state with <1%\n"
-            "  of observations — the 3-state solution is unstable on this data.\n"
-            "  This is a data finding: BTCUSDT 5-min returns are bimodal, not\n"
-            "  trimodal.  BIC still computed for completeness."
-        )
 
     print()
-    print(f"  ΔBIC (3-state − 2-state) = {delta_bic:+.1f}")
-    if delta_bic < 0:
-        print(
-            "  3-state BIC is LOWER → data supports a third regime.\n"
-            "  Recommendation: use 3-state going forward."
+    if result_3["rejected_no_valid_fit"]:
+        delta_bic = None
+        preferred_model = "2-state"
+        preference_reason = (
+            "3-state has NO valid fit: every restart either has a state with "
+            "<1% occupancy or two states with σ ratio <1.15 (duplicate-state "
+            "collapse). BTCUSDT 5-min returns are bimodal, not trimodal."
         )
+        print(
+            "  🔴 3-state REJECTED — no restart produced non-degenerate fit.\n"
+            "  All 3-state fits collapsed to either phantom-occupancy or duplicate-σ.\n"
+            "  Recommendation: keep 2-state. Data is bimodal."
+        )
+    elif bic_3 is None or bic_2 is None:
+        delta_bic = None
+        preferred_model = "2-state" if bic_2 is not None else "neither"
+        preference_reason = "one model has no valid BIC"
+        print("  Cannot compare BIC — one model produced no valid fit.")
     else:
-        print(
-            f"  2-state BIC is LOWER by {abs(delta_bic):.1f} → simpler model preferred.\n"
-            "  Recommendation: keep 2-state; additional regime is not justified\n"
-            "  by data (complexity penalty exceeds log-likelihood gain)."
-        )
+        delta_bic = bic_3 - bic_2
+        print(f"  ΔBIC (3-state − 2-state) = {delta_bic:+.1f}")
+        if delta_bic < 0:
+            preferred_model = "3-state"
+            preference_reason = (
+                "3-state has lower BIC even after rejecting occupancy-collapsed "
+                "and duplicate-state fits"
+            )
+            print(
+                "  3-state BIC is LOWER → data supports a third regime.\n"
+                "  Recommendation: use 3-state going forward."
+            )
+        else:
+            preferred_model = "2-state"
+            preference_reason = "2-state has lower BIC; complexity penalty exceeds log-likelihood gain"
+            print(
+                f"  2-state BIC is LOWER by {abs(delta_bic):.1f} → simpler model preferred.\n"
+                "  Recommendation: keep 2-state; additional regime is not justified\n"
+                "  by data (complexity penalty exceeds log-likelihood gain)."
+            )
 
     # ── Detailed regime table ─────────────────────────────────────────────
     for res in (result_2, result_3):
-        print(f"\n  {res['n_regimes']}-state regimes:")
+        print(f"\n  {res['n_regimes']}-state regimes (from production fit_hmm path):")
+        if not res['regimes']:
+            print("    (no regimes — fit_hmm raised an exception)")
+            continue
         print(f"  {'Label':<12} {'σ_mult':>8} {'state_vol':>12} {'prob':>8}")
         print("  " + "-" * 44)
         for r in res["regimes"]:
@@ -243,25 +336,17 @@ def main() -> None:
 
     # ── Save JSON ─────────────────────────────────────────────────────────
     output = {
+        "code_version": "post-bic-bug-fix-2026-04-26",
+        "fix_notes": (
+            "Fixed log-likelihood scaling bug (score(X) is already total, no *T). "
+            "Added duplicate-state σ-ratio filter (threshold 1.15) in addition "
+            "to occupancy filter."
+        ),
         "two_state": result_2,
         "three_state": result_3,
-        "delta_bic_3_minus_2": float(delta_bic),
-        "preferred_model": "3-state" if delta_bic < 0 else "2-state",
-        "preference_reason": (
-            "lower BIC (better fit adjusted for complexity)"
-            if delta_bic < 0
-            else (
-                "lower BIC; 3-state model collapses to phantom third state "
-                "(data is bimodal, not trimodal)"
-                if result_3["collapsed"]
-                else "lower BIC (simpler model, data does not support 3 states)"
-            )
-        ),
-        "three_state_collapse_note": (
-            "Best 3-state hmmlearn solution has a phantom state with <1% occupancy. "
-            "3-state HMM code is functional (confirmed on synthetic 3-regime data) "
-            "but this BTCUSDT dataset does not exhibit a separable third regime."
-        ) if result_3["collapsed"] else None,
+        "delta_bic_3_minus_2": float(delta_bic) if delta_bic is not None else None,
+        "preferred_model": preferred_model,
+        "preference_reason": preference_reason,
     }
 
     out_path = DATA_DIR / "hmm_2state_vs_3state.json"
