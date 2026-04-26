@@ -8,12 +8,16 @@ fit regimes via emission *variance* alone (means are all ~0).  This pushes
 
 Volatility itself, however, is monotonic by regime: low-vol bars have low
 realized σ, high-vol bars have high realized σ.  A Gaussian HMM on
-``log(rolling_std)`` can use both mean AND variance for separation, which
-typically gives 3-state models a much better chance of being non-degenerate.
+``log(rolling_std)`` separates regimes mainly via emission MEAN (not σ),
+so 3-state models can be non-degenerate even when raw-return 3-state can't.
 
-This script reuses the fixed ``_fit_and_score`` from
-``scripts/compare_2state_vs_3state_hmm`` (post-2026-04-26 BIC fix +
-duplicate-state filter) on the log-vol feature.
+Note on filtering
+-----------------
+The σ-ratio duplicate-state filter (used in compare_2state_vs_3state_hmm)
+is feature-specific.  It is correct for raw returns (regimes separated by
+σ).  On log_vol, regimes are separated by μ — different regimes can have
+similar σ but well-separated mean.  We therefore disable the σ-ratio
+filter here (threshold=0.0) and rely only on the occupancy filter.
 
 Output: ``data/hmm_vol_feature_comparison.json``
 
@@ -68,16 +72,21 @@ def main() -> None:
     print(f"  {T_vol:,} log-rolling-σ observations (window={VOL_WINDOW} bars = {VOL_WINDOW * 5}min)")
     print(f"  log_vol range: [{log_vol.min():.3f}, {log_vol.max():.3f}], mean={log_vol.mean():.3f}, std={log_vol.std():.3f}")
 
-    # Fit on log-vol feature
-    print(f"\nFitting 2-state HMM on log_vol (15 restarts)...")
+    # Fit on log-vol feature.  σ-ratio filter disabled because regime
+    # separation on log_vol is via μ (mean), not σ — see module docstring.
+    print(f"\nFitting 2-state HMM on log_vol (15 restarts, σ-filter off)...")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result_2_vol = _fit_and_score(log_vol, n_regimes=2)
+        result_2_vol = _fit_and_score(
+            log_vol, n_regimes=2, duplicate_sigma_ratio_threshold=0.0,
+        )
 
-    print(f"Fitting 3-state HMM on log_vol (15 restarts)...")
+    print(f"Fitting 3-state HMM on log_vol (15 restarts, σ-filter off)...")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result_3_vol = _fit_and_score(log_vol, n_regimes=3)
+        result_3_vol = _fit_and_score(
+            log_vol, n_regimes=3, duplicate_sigma_ratio_threshold=0.0,
+        )
 
     # Print comparison
     print("\n" + "=" * 72)
