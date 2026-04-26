@@ -814,33 +814,116 @@ def fit_hmm(
 def regime_aware_params(
     base_params: ACParams,
     regime: RegimeParams,
+    impact_overrides: Union[dict, None] = None,
 ) -> ACParams:
-    """Create regime-specific ACParams by multiplicative scaling.
+    """Create regime-specific ACParams.
 
-    regime.sigma / gamma / eta are dimensionless multipliers (~0.8–1.2x).
-    The result is base_params with each field scaled by the corresponding
-    regime multiplier. This produces O(1) differences between regimes,
-    unlike the previous sigma*1e-8 constants which were cosmetically
-    ineffective.
+    Default path (heuristic): scale ``base_params`` by the dimensionless
+    multipliers carried in ``regime`` (σ, γ, η ~ 0.7–2.5×).  This is what
+    older code used.
+
+    Override path (preferred when available): pass ``impact_overrides``
+    with absolute γ, η values (and optionally α) measured per-regime by
+    OLS — typically loaded from ``data/regime_conditional_impact.json``
+    via :func:`load_regime_impact_overrides`.  σ continues to come from
+    the regime estimate (it is a direct measurement, no heuristic
+    scaling involved).
+
+    The override path was added 2026-04-26 after audit showed the
+    heuristic γ/η scaling differs from per-regime OLS estimates by up
+    to 10× on η and ~5× on γ (see
+    ``research/hmm_state_count_audit_apr26.md``).
 
     Parameters
     ----------
     base_params : ACParams
         Base parameter set.
     regime : RegimeParams
-        Regime-specific multipliers.
+        Regime-specific multipliers.  Always provides σ scaling.
+    impact_overrides : dict, optional
+        ``{"gamma": float, "eta": float, "alpha": float (optional)}`` —
+        absolute values to use *in place of* heuristic γ/η scaling.
+        If None (default), heuristic scaling is used (backward compatible).
 
     Returns
     -------
     ACParams
-        Modified parameters with regime-scaled sigma, gamma, and eta.
+        Regime-scaled parameters.
     """
+    if impact_overrides is None:
+        return replace(
+            base_params,
+            sigma=base_params.sigma * regime.sigma,
+            gamma=base_params.gamma * regime.gamma,
+            eta=base_params.eta * regime.eta,
+        )
+
+    # Override path — σ from regime, γ/η absolute from OLS overrides
+    new_alpha = impact_overrides.get("alpha", base_params.alpha)
     return replace(
         base_params,
         sigma=base_params.sigma * regime.sigma,
-        gamma=base_params.gamma * regime.gamma,
-        eta=base_params.eta * regime.eta,
+        gamma=float(impact_overrides["gamma"]),
+        eta=float(impact_overrides["eta"]),
+        alpha=float(new_alpha),
     )
+
+
+def load_regime_impact_overrides(
+    json_path: Union[str, "Path"],
+    n_states: int = 2,
+) -> dict[str, dict[str, float]]:
+    """Load per-regime ``true_gamma``/``true_eta``/``true_alpha`` from
+    ``regime_conditional_impact.json`` for use with
+    :func:`regime_aware_params`.
+
+    The returned mapping keys on regime label (``"risk_on"``,
+    ``"risk_off"``, optionally ``"neutral"``) and each value is a dict
+    with absolute ``gamma``, ``eta``, ``alpha``.
+
+    Parameters
+    ----------
+    json_path : str or Path
+        Path to ``regime_conditional_impact.json``.
+    n_states : int
+        Either 2 or 3 — selects the corresponding section of the JSON.
+
+    Returns
+    -------
+    dict[str, dict[str, float]]
+        ``{"risk_on": {"gamma": ..., "eta": ..., "alpha": ...}, ...}``
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``json_path`` does not exist.
+    KeyError
+        If the JSON does not contain the requested ``n_states`` section.
+    """
+    import json
+    from pathlib import Path as _Path
+
+    p = _Path(json_path)
+    if not p.exists():
+        raise FileNotFoundError(
+            f"regime_conditional_impact.json not found at {p}. "
+            "Run scripts/refit_regime_conditional_impact.py first."
+        )
+    data = json.loads(p.read_text())
+    section_key = f"{n_states}_state"
+    if section_key not in data:
+        raise KeyError(
+            f"JSON has no '{section_key}' section. "
+            f"Available: {list(data.keys())}"
+        )
+    overrides = {}
+    for r in data[section_key]["per_regime"]:
+        overrides[r["label"]] = {
+            "gamma": float(r["true_gamma"]),
+            "eta": float(r["true_eta"]),
+            "alpha": float(r["true_alpha"]),
+        }
+    return overrides
 
 
 def _empirical_transition_matrix(
