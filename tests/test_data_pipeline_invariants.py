@@ -27,6 +27,11 @@ import pytest
 
 from calibration.data_loader import load_trades
 from calibration.impact_estimator import (
+    FALLBACK_ALPHA,
+    FALLBACK_ETA,
+    FALLBACK_GAMMA,
+    _estimate_eta_alpha_with_cascade,
+    _estimate_gamma_with_cascade,
     calibrated_params,
     estimate_kyle_lambda,
     estimate_kyle_lambda_aggregated,
@@ -253,3 +258,94 @@ class TestFallbackConstantsExplicit:
         assert wfv.FALLBACK_GAMMA == FALLBACK_GAMMA
         assert wfv.FALLBACK_ETA == FALLBACK_ETA
         assert wfv.FALLBACK_ALPHA == FALLBACK_ALPHA
+
+
+class TestCascadeHelperFallbackPath:
+    """Lock in: the extracted cascade helpers (2026-04-26 refactor)
+    return the FALLBACK_* constants with source_label="fallback" when
+    every listed method fails.  This is the contract that protects the
+    audit P0-2 fix — both `calibrated_params` and
+    `calibrated_params_per_regime` route through these helpers, so a
+    regression here would re-open the 25,000× unit-mismatch hole.
+    """
+
+    @staticmethod
+    def _tiny_trades():
+        """Build a 6-row trades DataFrame that is guaranteed to fail
+        every method in the cascade.  ``estimate_kyle_lambda_aggregated``
+        and ``estimate_temporary_impact_aggregated`` both require ≥ 20
+        valid buckets, so any handful of trades yields ValueError →
+        cascade exhaustion.  ``estimate_kyle_lambda`` returns None when
+        ``len < 10``, which forces the tick-level branch into its
+        fallback emit.  ``estimate_temporary_impact_from_trades``
+        likewise raises on too-few buckets.
+        """
+        return pd.DataFrame({
+            "timestamp": pd.to_datetime([
+                "2026-01-01 00:00:00",
+                "2026-01-01 00:00:01",
+                "2026-01-01 00:00:02",
+                "2026-01-01 00:00:03",
+                "2026-01-01 00:00:04",
+                "2026-01-01 00:00:05",
+            ], utc=True),
+            "price": [50000.0, 50001.0, 50000.5, 50002.0, 50001.5, 50003.0],
+            "quantity": [0.1, 0.2, 0.15, 0.3, 0.25, 0.4],
+            "side": [1, -1, 1, -1, 1, -1],
+        })
+
+    def test_gamma_helper_returns_fallback_when_all_methods_fail_pooled(self):
+        trades = self._tiny_trades()
+        gamma, source, warns = _estimate_gamma_with_cascade(
+            trades,
+            methods=["aggregated_1min", "aggregated_5min", "tick_level"],
+            regime_label=None,
+        )
+        assert gamma == FALLBACK_GAMMA, (
+            f"pooled cascade should return FALLBACK_GAMMA={FALLBACK_GAMMA} "
+            f"on synthetic too-small trades; got {gamma}"
+        )
+        assert source == "fallback"
+        assert isinstance(warns, list) and len(warns) >= 1
+
+    def test_gamma_helper_returns_fallback_when_all_methods_fail_per_regime(self):
+        trades = self._tiny_trades()
+        gamma, source, warns = _estimate_gamma_with_cascade(
+            trades,
+            methods=["aggregated_1min", "aggregated_5min"],
+            regime_label=2,
+        )
+        assert gamma == FALLBACK_GAMMA
+        assert source == "fallback"
+        # Per-regime mode emits the short final-fallback summary.
+        assert any("Regime 2" in w and "fallback" in w for w in warns), (
+            f"expected per-regime final-fallback warning in {warns}"
+        )
+
+    def test_eta_alpha_helper_returns_fallback_when_all_methods_fail_pooled(self):
+        trades = self._tiny_trades()
+        eta, alpha, source, warns = _estimate_eta_alpha_with_cascade(
+            trades,
+            methods=["aggregated_1min", "aggregated_5min", "trade_level"],
+            regime_label=None,
+        )
+        assert eta == FALLBACK_ETA, (
+            f"pooled cascade should return FALLBACK_ETA={FALLBACK_ETA}; got {eta}"
+        )
+        assert alpha == FALLBACK_ALPHA
+        assert source == "fallback"
+        assert isinstance(warns, list) and len(warns) >= 1
+
+    def test_eta_alpha_helper_returns_fallback_when_all_methods_fail_per_regime(self):
+        trades = self._tiny_trades()
+        eta, alpha, source, warns = _estimate_eta_alpha_with_cascade(
+            trades,
+            methods=["aggregated_1min", "aggregated_5min"],
+            regime_label=0,
+        )
+        assert eta == FALLBACK_ETA
+        assert alpha == FALLBACK_ALPHA
+        assert source == "fallback"
+        assert any("Regime 0" in w and "fallback" in w for w in warns), (
+            f"expected per-regime final-fallback warning in {warns}"
+        )

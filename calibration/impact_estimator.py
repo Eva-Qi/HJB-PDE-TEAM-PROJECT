@@ -515,6 +515,297 @@ class CalibrationResult:
     n_trades: int | None = None
 
 
+# ── Calibration cascade helpers ──────────────────────────────────────
+# Extracted 2026-04-26 to remove the duplicate gamma/eta cascade logic
+# that lived inline in both ``calibrated_params`` and
+# ``calibrated_params_per_regime``.  Historically the duplicated blocks
+# silently drifted apart on the FALLBACK_GAMMA constant — a 25,000×
+# unit-mismatch bug (audit P0-2).  Routing both call sites through these
+# helpers eliminates the underlying smell so future fallback / r²-window
+# changes happen in one place.
+#
+# Behaviour preservation: the helpers are byte-equivalent to the inline
+# code they replaced.  Two warning dialects are supported because the
+# original cascades emitted different strings:
+#
+#   * pooled mode (regime_label is None) — used by ``calibrated_params``
+#     emits diagnostic accept warnings AND step-transition reject
+#     warnings ("trying 5min", "trying trade-level", ...) and the
+#     verbose final-fallback message.
+#
+#   * per-regime mode (regime_label is not None) — used by
+#     ``calibrated_params_per_regime`` emits only reject/exception
+#     warnings (no accept diagnostics) with the "for regime {label}"
+#     suffix and a short "Regime {label}: all gamma methods failed —
+#     using literature fallback ..." final message.
+#
+# Adding a new method to an existing site means appending it to the
+# ``methods`` list and (if it is a brand-new method type) extending the
+# dispatch table at the top of each helper.
+
+
+def _estimate_gamma_with_cascade(
+    trades_df,
+    methods: "list[str]",
+    regime_label: "int | None" = None,
+) -> "tuple[float, str, list[str]]":
+    """Run the gamma (Kyle's lambda) calibration cascade.
+
+    Tries each method in ``methods`` in order, accepting the first that
+    passes the per-method acceptance test (γ > 0 and r² ≥ 0.01 for the
+    aggregated methods; γ > 0 only for tick-level).  If every method
+    fails, returns ``(FALLBACK_GAMMA, "fallback", warnings)``.
+
+    Parameters
+    ----------
+    trades_df : pd.DataFrame
+        Trade data with ``timestamp``, ``price``, ``quantity``, ``side``.
+    methods : list[str]
+        Ordered list of method names.  Recognised values:
+        ``"aggregated_1min"``, ``"aggregated_5min"``, ``"tick_level"``.
+    regime_label : int | None
+        When given, the helper uses the per-regime warning style
+        (``"for regime {label}"`` suffix, no accept diagnostics).
+        When ``None`` (pooled mode), the helper emits the diagnostic
+        accept warnings and step-transition reject warnings used by
+        ``calibrated_params``.
+
+    Returns
+    -------
+    (gamma, source_label, warnings) : tuple[float, str, list[str]]
+        ``source_label`` is one of the entries in ``methods`` (when a
+        method succeeded) or ``"fallback"``.
+    """
+    warnings: "list[str]" = []
+    pooled = regime_label is None
+
+    # Pooled-mode tick-level inputs are computed lazily once, the first
+    # time the tick step is reached, so per-regime callers (which never
+    # list tick_level) pay nothing for the diff/sort.
+    _tick_inputs: "tuple | None" = None
+
+    def _tick_arrays():
+        nonlocal _tick_inputs
+        if _tick_inputs is None:
+            ts = trades_df.sort_values("timestamp")
+            dp = ts["price"].diff().dropna().values
+            sf = (ts["quantity"] * ts["side"]).values[1:]
+            _tick_inputs = (dp, sf)
+        return _tick_inputs
+
+    # Step-transition suffix for pooled-mode reject/exception warnings —
+    # mirrors the inline strings ("— trying 5min", "— trying trade-level",
+    # final → "" because the fallback message is emitted separately).
+    pooled_next_suffix = {
+        "aggregated_1min": " — trying 5min",
+        "aggregated_5min": "",      # inline 5min reject branch is silent
+        "tick_level": "",           # tick reject path emits the fallback msg
+    }
+
+    for idx, method in enumerate(methods):
+        if method in ("aggregated_1min", "aggregated_5min"):
+            freq = "1min" if method == "aggregated_1min" else "5min"
+            try:
+                g, g_diag = estimate_kyle_lambda_aggregated(trades_df, freq=freq)
+                if g > 0 and g_diag["r_squared"] >= 0.01:
+                    if pooled:
+                        if method == "aggregated_1min":
+                            warnings.append(
+                                f"[gamma {method}] γ={g:.4e} "
+                                f"r²={g_diag['r_squared']:.3f} "
+                                f"n_buckets={g_diag['n_buckets']}"
+                            )
+                        else:  # aggregated_5min — no n_buckets, matches inline
+                            warnings.append(
+                                f"[gamma {method}] γ={g:.4e} "
+                                f"r²={g_diag['r_squared']:.3f}"
+                            )
+                    return g, method, warnings
+                else:
+                    if pooled:
+                        if method == "aggregated_1min":
+                            warnings.append(
+                                f"[gamma {method}] γ={g:.4e} "
+                                f"r²={g_diag['r_squared']:.3f} "
+                                f"rejected (negative γ or low R²)"
+                                f"{pooled_next_suffix[method]}"
+                            )
+                        # aggregated_5min reject branch is silent in pooled
+                        # mode (matches the original inline behaviour).
+                    else:
+                        warnings.append(
+                            f"[gamma {freq}] γ={g:.4e} "
+                            f"r²={g_diag['r_squared']:.3f} "
+                            f"rejected for regime {regime_label}"
+                        )
+            except Exception as exc:
+                if pooled:
+                    warnings.append(
+                        f"[gamma {method}] failed ({exc})"
+                        f"{pooled_next_suffix[method]}"
+                    )
+                else:
+                    warnings.append(
+                        f"[gamma {freq}] failed ({exc}) for regime {regime_label}"
+                    )
+
+        elif method == "tick_level":
+            # Tick-level only used by pooled cascade (regime_label is None).
+            dp, sf = _tick_arrays()
+            g_tick = estimate_kyle_lambda(dp, sf)
+            if g_tick is not None and g_tick > 0:
+                warnings.append(
+                    f"[gamma tick_level] γ={g_tick:.4e} — both aggregated "
+                    f"frequencies failed; tick-level is known to be "
+                    f"bid-ask-bounce-dominated"
+                )
+                return g_tick, "tick_level", warnings
+            else:
+                # Inline behaviour: the tick-level rejection IS the
+                # final-fallback warning in pooled mode.  Emit it here
+                # and return immediately.
+                warnings.append(
+                    f"ALL gamma methods failed (tick={g_tick}); using "
+                    f"literature fallback γ={FALLBACK_GAMMA} — downstream AC "
+                    f"trajectory will be dominated by this magic constant"
+                )
+                return FALLBACK_GAMMA, "fallback", warnings
+
+        else:
+            raise ValueError(
+                f"_estimate_gamma_with_cascade: unknown method {method!r}"
+            )
+
+    # All listed methods failed.  Per-regime mode emits a short final
+    # message; pooled mode without a tick step would have emitted nothing
+    # so we mirror the per-regime style only when regime_label is set
+    # (pooled callers always include tick_level which handles its own
+    # final message above).
+    if not pooled:
+        warnings.append(
+            f"Regime {regime_label}: all gamma methods failed — "
+            f"using literature fallback γ={FALLBACK_GAMMA}"
+        )
+    return FALLBACK_GAMMA, "fallback", warnings
+
+
+def _estimate_eta_alpha_with_cascade(
+    trades_df,
+    methods: "list[str]",
+    regime_label: "int | None" = None,
+) -> "tuple[float, float, str, list[str]]":
+    """Run the temporary-impact (eta, alpha) calibration cascade.
+
+    Mirrors :func:`_estimate_gamma_with_cascade` but for the power-law
+    temporary-impact regression.  Acceptance test for the aggregated
+    methods is ``0.3 ≤ alpha ≤ 1.5`` and ``r² ≥ 0.05``; for trade-level
+    the test is just ``0.3 ≤ alpha ≤ 1.5`` (no r² gate, matching the
+    inline code in ``calibrated_params``).
+
+    Parameters
+    ----------
+    trades_df : pd.DataFrame
+        Trade data with ``timestamp``, ``price``, ``quantity``, ``side``.
+    methods : list[str]
+        Ordered list of method names.  Recognised values:
+        ``"aggregated_1min"``, ``"aggregated_5min"``, ``"trade_level"``.
+    regime_label : int | None
+        When given, per-regime warning style; when ``None``, pooled
+        warning style.
+
+    Returns
+    -------
+    (eta, alpha, source_label, warnings) : tuple[float, float, str, list[str]]
+        ``source_label`` is one of the entries in ``methods`` (when a
+        method succeeded) or ``"fallback"``.
+    """
+    warnings: "list[str]" = []
+    pooled = regime_label is None
+
+    pooled_next_suffix = {
+        "aggregated_1min": " — trying 5min",
+        "aggregated_5min": " — trying trade-level",
+        "trade_level": " — using literature fallback",
+    }
+
+    for method in methods:
+        if method in ("aggregated_1min", "aggregated_5min"):
+            freq = "1min" if method == "aggregated_1min" else "5min"
+            try:
+                e, a, d = estimate_temporary_impact_aggregated(trades_df, freq=freq)
+                if 0.3 <= a <= 1.5 and d["r_squared"] >= 0.05:
+                    if pooled:
+                        warnings.append(
+                            f"[{method}] alpha={a:.3f} "
+                            f"r²={d['r_squared']:.3f} "
+                            f"n_buckets={d['n_buckets']} "
+                            f"p={d['p_value']:.4f}"
+                        )
+                    return e, a, method, warnings
+                else:
+                    if pooled:
+                        warnings.append(
+                            f"[{method}] alpha={a:.3f} "
+                            f"r²={d['r_squared']:.3f} "
+                            f"out of acceptance window"
+                            f"{pooled_next_suffix[method]}"
+                        )
+                    else:
+                        warnings.append(
+                            f"[impact {freq}] alpha={a:.3f} "
+                            f"r²={d['r_squared']:.3f} "
+                            f"out of window for regime {regime_label}"
+                        )
+            except Exception as exc:
+                if pooled:
+                    warnings.append(
+                        f"[{method}] failed ({exc})"
+                        f"{pooled_next_suffix[method]}"
+                    )
+                else:
+                    warnings.append(
+                        f"[impact {freq}] failed ({exc}) for regime {regime_label}"
+                    )
+
+        elif method == "trade_level":
+            # Trade-level only used by pooled cascade.
+            try:
+                eta_tl, alpha_tl = estimate_temporary_impact_from_trades(
+                    trades_df, n_buckets=20
+                )
+                if 0.3 <= alpha_tl <= 1.5:
+                    warnings.append(f"[trade_level] alpha={alpha_tl:.3f} accepted")
+                    return eta_tl, alpha_tl, "trade_level", warnings
+                else:
+                    warnings.append(
+                        f"[trade_level] alpha={alpha_tl:.3f} out of range "
+                        f"[0.3, 1.5] — using literature fallback"
+                    )
+            except Exception as exc:
+                warnings.append(
+                    f"[trade_level] failed ({exc}) — using literature fallback"
+                )
+
+        else:
+            raise ValueError(
+                f"_estimate_eta_alpha_with_cascade: unknown method {method!r}"
+            )
+
+    # All listed methods failed → literature fallback.
+    if pooled:
+        warnings.append(
+            "temporary impact: all methods failed, using literature "
+            "fallback eta=1e-3 alpha=0.6"
+        )
+    else:
+        warnings.append(
+            f"Regime {regime_label}: all impact methods failed — "
+            f"using literature fallback eta={FALLBACK_ETA} "
+            f"alpha={FALLBACK_ALPHA}"
+        )
+    return FALLBACK_ETA, FALLBACK_ALPHA, "fallback", warnings
+
+
 def calibrated_params_per_regime(
     trades_df,
     state_sequence: "np.ndarray",
@@ -708,60 +999,23 @@ def calibrated_params_per_regime(
             except ValueError:
                 pass
 
-            # Kyle's lambda — try 1-min, then 5-min
-            gamma_sub = None
-            gamma_source = None
-            for freq in ("1min", "5min"):
-                try:
-                    g, g_diag = estimate_kyle_lambda_aggregated(sub, freq=freq)
-                    if g > 0 and g_diag["r_squared"] >= 0.01:
-                        gamma_sub = g
-                        gamma_source = f"aggregated_{freq}"
-                        break
-                    else:
-                        sub_warnings.append(
-                            f"[gamma {freq}] γ={g:.4e} r²={g_diag['r_squared']:.3f} "
-                            f"rejected for regime {regime_label}"
-                        )
-                except Exception as exc:
-                    sub_warnings.append(
-                        f"[gamma {freq}] failed ({exc}) for regime {regime_label}"
-                    )
-            if gamma_sub is None:
-                gamma_sub = FALLBACK_GAMMA
-                gamma_source = "fallback"
-                sub_warnings.append(
-                    f"Regime {regime_label}: all gamma methods failed — "
-                    f"using literature fallback γ={FALLBACK_GAMMA}"
-                )
+            # Kyle's lambda — try 1-min, then 5-min (per-regime cascade).
+            gamma_sub, gamma_source, gamma_warns = _estimate_gamma_with_cascade(
+                sub,
+                methods=["aggregated_1min", "aggregated_5min"],
+                regime_label=regime_label,
+            )
+            sub_warnings.extend(gamma_warns)
 
-            # Temporary impact
-            eta_sub = alpha_sub = None
-            impact_source = None
-            for freq in ("1min", "5min"):
-                try:
-                    e, a, d = estimate_temporary_impact_aggregated(sub, freq=freq)
-                    if 0.3 <= a <= 1.5 and d["r_squared"] >= 0.05:
-                        eta_sub, alpha_sub = e, a
-                        impact_source = f"aggregated_{freq}"
-                        break
-                    else:
-                        sub_warnings.append(
-                            f"[impact {freq}] alpha={a:.3f} r²={d['r_squared']:.3f} "
-                            f"out of window for regime {regime_label}"
-                        )
-                except Exception as exc:
-                    sub_warnings.append(
-                        f"[impact {freq}] failed ({exc}) for regime {regime_label}"
-                    )
-            if eta_sub is None:
-                eta_sub, alpha_sub = FALLBACK_ETA, FALLBACK_ALPHA
-                impact_source = "fallback"
-                sub_warnings.append(
-                    f"Regime {regime_label}: all impact methods failed — "
-                    f"using literature fallback eta={FALLBACK_ETA} "
-                    f"alpha={FALLBACK_ALPHA}"
+            # Temporary impact (per-regime cascade).
+            eta_sub, alpha_sub, impact_source, impact_warns = (
+                _estimate_eta_alpha_with_cascade(
+                    sub,
+                    methods=["aggregated_1min", "aggregated_5min"],
+                    regime_label=regime_label,
                 )
+            )
+            sub_warnings.extend(impact_warns)
 
             S0 = float(sub["price"].iloc[-1])
             params_sub = ACParams(
@@ -885,127 +1139,22 @@ def calibrated_params(
     # empirically produces NEGATIVE gamma on real BTCUSDT data (e.g.,
     # 2026-01 → gamma ≈ -0.0113, economically absurd). Bar-level
     # aggregation recovers the positive γ ≈ 2.5 the audit report cites.
-    gamma = None
-    _gamma_method = None
-
-    # --- 3a. Try aggregated 1-min ---
-    try:
-        g1, g1_diag = estimate_kyle_lambda_aggregated(trades, freq="1min")
-        if g1 > 0 and g1_diag["r_squared"] >= 0.01:
-            gamma = g1
-            _gamma_method = "aggregated_1min"
-            sources["gamma"] = "aggregated_1min"
-            warnings.append(
-                f"[gamma aggregated_1min] γ={g1:.4e} r²={g1_diag['r_squared']:.3f} "
-                f"n_buckets={g1_diag['n_buckets']}"
-            )
-        else:
-            warnings.append(
-                f"[gamma aggregated_1min] γ={g1:.4e} r²={g1_diag['r_squared']:.3f} "
-                f"rejected (negative γ or low R²) — trying 5min"
-            )
-    except (ValueError, Exception) as e:
-        warnings.append(f"[gamma aggregated_1min] failed ({e}) — trying 5min")
-
-    # --- 3b. Try aggregated 5-min ---
-    if gamma is None:
-        try:
-            g5, g5_diag = estimate_kyle_lambda_aggregated(trades, freq="5min")
-            if g5 > 0 and g5_diag["r_squared"] >= 0.01:
-                gamma = g5
-                _gamma_method = "aggregated_5min"
-                sources["gamma"] = "aggregated_5min"
-                warnings.append(
-                    f"[gamma aggregated_5min] γ={g5:.4e} r²={g5_diag['r_squared']:.3f}"
-                )
-        except (ValueError, Exception) as e:
-            warnings.append(f"[gamma aggregated_5min] failed ({e})")
-
-    # --- 3c. Last resort: tick-level (known to give wrong sign on BTCUSDT) ---
-    if gamma is None:
-        trades_sorted = trades.sort_values("timestamp")
-        delta_prices = trades_sorted["price"].diff().dropna().values
-        signed_flows = (trades_sorted["quantity"] * trades_sorted["side"]).values[1:]
-        g_tick = estimate_kyle_lambda(delta_prices, signed_flows)
-        if g_tick is not None and g_tick > 0:
-            gamma = g_tick
-            sources["gamma"] = "tick_level"
-            warnings.append(
-                f"[gamma tick_level] γ={g_tick:.4e} — both aggregated "
-                f"frequencies failed; tick-level is known to be "
-                f"bid-ask-bounce-dominated"
-            )
-        else:
-            msg = (f"ALL gamma methods failed (tick={g_tick}); using "
-                   f"literature fallback γ={FALLBACK_GAMMA} — downstream AC "
-                   f"trajectory will be dominated by this magic constant")
-            warnings.append(msg)
-            gamma = FALLBACK_GAMMA
-            sources["gamma"] = "fallback"
+    gamma, gamma_source, gamma_warns = _estimate_gamma_with_cascade(
+        trades,
+        methods=["aggregated_1min", "aggregated_5min", "tick_level"],
+        regime_label=None,
+    )
+    sources["gamma"] = gamma_source
+    warnings.extend(gamma_warns)
 
     # 4. Temporary impact → (eta, alpha)
     # Cascade: aggregated_1min → aggregated_5min → trade_level → fallback
-    eta = alpha = None
-    _impact_method = None
-
-    # --- 4a. Try aggregated 1-min ---
-    try:
-        eta_1, alpha_1, diag_1 = estimate_temporary_impact_aggregated(trades, freq="1min")
-        if 0.3 <= alpha_1 <= 1.5 and diag_1["r_squared"] >= 0.05:
-            eta, alpha = eta_1, alpha_1
-            _impact_method = "aggregated_1min"
-            warnings.append(
-                f"[aggregated_1min] alpha={alpha_1:.3f} r²={diag_1['r_squared']:.3f} "
-                f"n_buckets={diag_1['n_buckets']} p={diag_1['p_value']:.4f}"
-            )
-        else:
-            warnings.append(
-                f"[aggregated_1min] alpha={alpha_1:.3f} r²={diag_1['r_squared']:.3f} "
-                f"out of acceptance window — trying 5min"
-            )
-    except (ValueError, Exception) as e:
-        warnings.append(f"[aggregated_1min] failed ({e}) — trying 5min")
-
-    # --- 4b. Try aggregated 5-min ---
-    if eta is None:
-        try:
-            eta_5, alpha_5, diag_5 = estimate_temporary_impact_aggregated(trades, freq="5min")
-            if 0.3 <= alpha_5 <= 1.5 and diag_5["r_squared"] >= 0.05:
-                eta, alpha = eta_5, alpha_5
-                _impact_method = "aggregated_5min"
-                warnings.append(
-                    f"[aggregated_5min] alpha={alpha_5:.3f} r²={diag_5['r_squared']:.3f} "
-                    f"n_buckets={diag_5['n_buckets']} p={diag_5['p_value']:.4f}"
-                )
-            else:
-                warnings.append(
-                    f"[aggregated_5min] alpha={alpha_5:.3f} r²={diag_5['r_squared']:.3f} "
-                    f"out of acceptance window — trying trade-level"
-                )
-        except (ValueError, Exception) as e:
-            warnings.append(f"[aggregated_5min] failed ({e}) — trying trade-level")
-
-    # --- 4c. Fall back to trade-level ---
-    if eta is None:
-        try:
-            eta_tl, alpha_tl = estimate_temporary_impact_from_trades(trades, n_buckets=20)
-            if 0.3 <= alpha_tl <= 1.5:
-                eta, alpha = eta_tl, alpha_tl
-                _impact_method = "trade_level"
-                warnings.append(f"[trade_level] alpha={alpha_tl:.3f} accepted")
-            else:
-                warnings.append(
-                    f"[trade_level] alpha={alpha_tl:.3f} out of range [0.3, 1.5] — using literature fallback"
-                )
-        except (ValueError, Exception) as e:
-            warnings.append(f"[trade_level] failed ({e}) — using literature fallback")
-
-    # --- 4d. Literature fallback ---
-    if eta is None:
-        eta, alpha = 1e-3, 0.6
-        _impact_method = "fallback"
-        warnings.append("temporary impact: all methods failed, using literature fallback eta=1e-3 alpha=0.6")
-
+    eta, alpha, _impact_method, impact_warns = _estimate_eta_alpha_with_cascade(
+        trades,
+        methods=["aggregated_1min", "aggregated_5min", "trade_level"],
+        regime_label=None,
+    )
+    warnings.extend(impact_warns)
     sources["eta"] = _impact_method
     sources["alpha"] = _impact_method
 
