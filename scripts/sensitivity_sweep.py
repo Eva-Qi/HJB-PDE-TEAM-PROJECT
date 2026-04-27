@@ -151,7 +151,7 @@ def sweep_x0():
     """
     from montecarlo.sde_engine import simulate_execution
 
-    x0_values = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
+    x0_values = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10_000]
     n_paths = 10_000
     seed = 42
 
@@ -291,19 +291,32 @@ def sweep_x0():
                  color="tab:purple",
                  label=r"$\alpha=0.441$ (calibrated, HJB)",
                  linewidth=2, markersize=7)
+    # Mark HJB-degenerate X0 values with light-red vertical bands instead of
+    # data markers — keeps the visual separate from the α=1 closed-form line.
     if (~converged_mask).any():
-        ax1.scatter(x_arr[~converged_mask],
-                    np.zeros((~converged_mask).sum()),
-                    marker="x", s=120, color="red", linewidths=2.5,
-                    label=r"$\alpha=0.441$ HJB degenerate ($>95\%$ in 1 step)",
-                    zorder=5)
+        for xv in x_arr[~converged_mask]:
+            ax1.axvspan(xv * 0.85, xv * 1.18, color="red", alpha=0.10, zorder=0)
+        # Single legend handle via a proxy patch
+        from matplotlib.patches import Patch
+        degen_patch = Patch(facecolor="red", alpha=0.18,
+                            label=r"$\alpha=0.441$ HJB degenerate ($>95\%$ in 1 step)")
+        ax1_handles, ax1_labels = ax1.get_legend_handles_labels()
+        ax1_handles.append(degen_patch)
+        ax1.legend(handles=ax1_handles, loc="upper left",
+                   fontsize=8, framealpha=0.92)
 
     ax1.axhline(0, color="black", linewidth=0.6, linestyle=":")
     ax1.set_xscale("log")
-    ax1.set_xlabel("Order Size $X_0$ (BTC)")
+    ax1.set_xlabel(r"Order Size $X_0$ (BTC)")
     ax1.set_ylabel("Paired MC Savings AC vs TWAP (%)")
-    ax1.set_title("AC vs TWAP — Paired MC with CRN, N=10,000")
-    ax1.legend(loc="upper left", fontsize=9, framealpha=0.92)
+    ax1.set_title(r"AC vs TWAP — Paired MC with CRN, N=10,000")
+    # Annotation explaining why α=1 CI band is invisible
+    ax1.text(0.98, 0.05,
+             r"$\alpha=1$ CI band invisible (width $\approx 10^{-2}\%$)" + "\n"
+             r"because closed-form AC $\approx$ TWAP at $\kappa T=0.26$",
+             transform=ax1.transAxes, fontsize=8, ha="right", va="bottom",
+             bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
+                       edgecolor="gray", alpha=0.85))
 
     # Right panel — mean cost ratio (linear y, log x), shows the absolute story
     ratio_lin = np.array([r["mean_opt"] / r["mean_twap"]
