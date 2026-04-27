@@ -51,6 +51,14 @@ from extensions.regime import (
 from montecarlo.strategies import twap_trajectory
 from montecarlo.sde_engine import simulate_execution, simulate_regime_execution
 from montecarlo.cost_analysis import paired_strategy_test
+from shared.experiment_config import (
+    T_1H,
+    LAM,
+    SEED,
+    N_STEPS,
+    BOOTSTRAP_REPS,
+    ALPHA_STAT,
+)
 from shared.params import ACParams
 
 try:
@@ -113,16 +121,11 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILES = sorted(DATA_DIR.glob("BTCUSDT-aggTrades-2026-*.csv"))
 
 N_PATHS = 10_000
-SEED = 42
 N_REGIMES = 2
-BOOTSTRAP_REPS = 5_000
-ALPHA_STAT = 0.05
 
 # Execution parameters (identical to V4 / V3 / V2 / V1)
 X0 = 10.0
-T = 1.0/(365.25*24)   # 1-hour horizon
-N_STEPS = 250
-LAM = 1e-6
+T = T_1H   # 1-hour horizon
 
 
 # ─── Bootstrap helpers ────────────────────────────────────────────────────────

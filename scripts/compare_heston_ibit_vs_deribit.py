@@ -27,9 +27,10 @@ import numpy as np
 # ── paths ────────────────────────────────────────────────────────────────────
 ROOT        = Path(__file__).resolve().parent.parent
 DATA        = ROOT / "data"
+AUDITS_SNAP = ROOT / "audits" / "snapshots"
 IBIT_FILE   = DATA / "heston_qmeasure_ibit_20260424.json"
 TARDIS_FILE = DATA / "heston_qmeasure_time_series.json"
-PREFIX_FILE = DATA / "heston_qmeasure_time_series_PREFIX.json"
+PREFIX_FILE = AUDITS_SNAP / "heston_qmeasure_time_series_PREFIX.json"
 OUT_JSON    = DATA / "heston_cross_source_comparison.json"
 OUT_PNG     = DATA / "heston_cross_source_comparison.png"
 

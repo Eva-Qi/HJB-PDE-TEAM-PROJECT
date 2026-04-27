@@ -30,14 +30,13 @@ import pandas as pd
 from calibration.data_loader import load_trades, compute_mid_prices
 from calibration.impact_estimator import calibrated_params, calibrated_params_per_regime
 from extensions.regime import fit_hmm, regime_aware_params
+from shared.experiment_config import T_1H, LAM, N_STEPS
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILES = sorted(DATA_DIR.glob("BTCUSDT-aggTrades-2026-*.csv"))
 
 X0 = 10.0
-T_HORIZON = 1.0/(365.25*24)   # 1-hour execution window
-N_STEPS = 250
-LAM = 1e-6
+T_HORIZON = T_1H   # 1-hour execution window
 
 
 def _regime_label_to_idx(label: str, n_regimes: int) -> int:

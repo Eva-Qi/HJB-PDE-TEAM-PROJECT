@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 
+from shared.experiment_config import T_1H, LAM, SEED, N_STEPS, BOOTSTRAP_REPS
 from shared.params import ACParams
 from montecarlo.strategies import twap_trajectory
 from montecarlo.sde_engine import simulate_execution, simulate_heston_execution
@@ -56,7 +57,6 @@ VOL_REGIMES = [
 ]
 
 N_PATHS = 10_000
-SEED = 42
 
 
 def _make_base_params(sigma: float) -> ACParams:
@@ -66,12 +66,12 @@ def _make_base_params(sigma: float) -> ACParams:
         sigma=sigma,
         mu=0.0,
         X0=10.0,
-        T=1.0/(365.25*24),
-        N=250,
+        T=T_1H,
+        N=N_STEPS,
         gamma=1.48,
         eta=1.58e-4,
         alpha=1.0,
-        lam=1e-6,
+        lam=LAM,
         fee_bps=0.0,
     )
 
@@ -113,7 +113,7 @@ def run_one_regime(regime: dict) -> dict:
         label_a="Heston",
         label_b="ConstVol",
         test="both",
-        n_bootstrap=5_000,
+        n_bootstrap=BOOTSTRAP_REPS,
         seed=SEED,
     )
 

@@ -26,6 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from calibration.impact_estimator import calibrated_params
+from shared.experiment_config import T_1H, LAM, SEED
 from shared.params import ACParams, almgren_chriss_closed_form
 from shared.cost_model import execution_cost, execution_risk, objective
 from montecarlo.strategies import twap_trajectory, optimal_trajectory
@@ -41,11 +42,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = str(PROJECT_ROOT / "data")
 X0_VALUES = [10, 100, 1000]     # BTC
 ALPHA_OB = 0.47                 # from order book data (used for supplementary PDE run)
-N_STEPS = 50
-T_HOURS = 1.0                   # execution horizon in hours
-T_YEARS = T_HOURS / (365.25 * 24)
+N_STEPS = 50                    # this script's per-experiment knob (50, not 250)
 N_PATHS = 5000
-SEED = 42
 PDE_M = 200
 
 # kappa*T target for meaningful front-loading
@@ -68,12 +66,12 @@ def run_single_x0(X0, S0, sigma, gamma, eta, alpha, lam, label_prefix=""):
     """
     params = ACParams(
         S0=S0, sigma=sigma, mu=0.0,
-        X0=float(X0), T=T_YEARS, N=N_STEPS,
+        X0=float(X0), T=T_1H, N=N_STEPS,
         gamma=gamma, eta=eta, alpha=alpha, lam=lam,
     )
 
     kappa = params.kappa
-    kT = kappa * T_YEARS
+    kT = kappa * T_1H
     print(f"  {label_prefix}lam = {lam:.6e}")
     print(f"  {label_prefix}kappa = {kappa:.4f},  kappa*T = {kT:.4f}")
 
@@ -162,7 +160,7 @@ def run_single_x0(X0, S0, sigma, gamma, eta, alpha, lam, label_prefix=""):
 def main():
     print("\n" + "=" * 75)
     print("  MULTI-X0 COMPARISON: Optimal Execution vs TWAP")
-    print(f"  T = {T_HOURS:.0f} hour, N = {N_STEPS}, target kappa*T = {KAPPA_T_TARGET}")
+    print(f"  T = 1 hour, N = {N_STEPS}, target kappa*T = {KAPPA_T_TARGET}")
     print("=" * 75)
 
     # ------------------------------------------------------------------
@@ -172,9 +170,9 @@ def main():
     cal = calibrated_params(
         trades_path=DATA_DIR,
         X0=X0_VALUES[0],
-        T=T_YEARS,
+        T=T_1H,
         N=N_STEPS,
-        lam=1e-6,
+        lam=LAM,
     )
     base = cal.params
     S0 = base.S0
@@ -200,7 +198,7 @@ def main():
         print(f"\n{'='*75}")
         print(f"  X0 = {X0} BTC  |  alpha = {alpha_lin}")
         print(f"{'='*75}")
-        lam = find_lam_for_kappa_T(S0, sigma, eta, T_YEARS, KAPPA_T_TARGET)
+        lam = find_lam_for_kappa_T(S0, sigma, eta, T_1H, KAPPA_T_TARGET)
         results_linear[X0] = run_single_x0(
             X0, S0, sigma, gamma, eta, alpha_lin, lam,
         )
@@ -214,7 +212,7 @@ def main():
         print(f"\n{'='*75}")
         print(f"  X0 = {X0} BTC  |  alpha = {ALPHA_OB}")
         print(f"{'='*75}")
-        lam = find_lam_for_kappa_T(S0, sigma, eta, T_YEARS, KAPPA_T_TARGET)
+        lam = find_lam_for_kappa_T(S0, sigma, eta, T_1H, KAPPA_T_TARGET)
         results_nonlin[X0] = run_single_x0(
             X0, S0, sigma, gamma, eta, ALPHA_OB, lam,
             label_prefix="[a=0.47] ",

@@ -25,6 +25,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 
+from shared.experiment_config import (
+    T_1H,
+    T_6H,
+    T_1D,
+    LAM,
+    SEED,
+    N_STEPS,
+    N_PATHS_HIRES,
+    BOOTSTRAP_REPS,
+)
 from shared.params import ACParams
 from shared.cost_model import execution_cost, objective
 from montecarlo.strategies import twap_trajectory, optimal_trajectory
@@ -37,19 +47,16 @@ from montecarlo.cost_analysis import paired_strategy_test
 # ---------------------------------------------------------------------------
 BASE_PARAMS = ACParams(
     S0=69000.0, sigma=0.396, mu=0.0, X0=10.0,
-    T=1.0/(365.25*24), N=250,
-    gamma=1.48, eta=1.58e-4, alpha=1.0, lam=1e-6,
+    T=T_1H, N=N_STEPS,
+    gamma=1.48, eta=1.58e-4, alpha=1.0, lam=LAM,
     fee_bps=7.5,
 )
-
-SEED = 42
 
 
 # ===========================================================================
 # Task 1: Hi-res X0 sweep (100k paths)
 # ===========================================================================
 X0_VALUES = [1.0, 10.0, 100.0, 1000.0, 10000.0]
-N_PATHS_HIRES = 100_000
 
 
 def run_x0_hires(x0: float) -> dict:
@@ -71,7 +78,7 @@ def run_x0_hires(x0: float) -> dict:
     result = paired_strategy_test(
         costs_a=costs_opt, costs_b=costs_twap,
         label_a="AC_Optimal", label_b="TWAP",
-        test="both", n_bootstrap=5_000, seed=SEED,
+        test="both", n_bootstrap=BOOTSTRAP_REPS, seed=SEED,
     )
 
     obj_twap = objective(x_twap, p)
@@ -102,13 +109,12 @@ def run_x0_hires(x0: float) -> dict:
 
 # Horizon definitions: label, T in years (1 year = 1 unit), N steps
 HORIZONS = [
-    {"label": "1h",  "T": 1/(365.25*24),  "N": 50},
-    {"label": "6h",  "T": 6/(365.25*24),  "N": 100},
-    {"label": "1d",  "T": 1/365.25,       "N": 250},
+    {"label": "1h",  "T": T_1H,  "N": 50},
+    {"label": "6h",  "T": T_6H,  "N": 100},
+    {"label": "1d",  "T": T_1D,  "N": 250},
 ]
 
 N_PATHS_HORIZON = 10_000
-LAM = 1e-6
 
 
 def _var_95(arr: np.ndarray) -> float:
@@ -129,8 +135,8 @@ def paired_bootstrap_stat(
     costs_a: np.ndarray,
     costs_b: np.ndarray,
     stat_fn,
-    n_bootstrap: int = 5_000,
-    seed: int = 42,
+    n_bootstrap: int = BOOTSTRAP_REPS,
+    seed: int = SEED,
 ) -> tuple[float, float, float]:
     """Joint paired bootstrap for a scalar statistic; returns (stat_a, stat_b, pvalue)."""
     n = len(costs_a)
@@ -197,21 +203,21 @@ def run_horizon(horizon: dict) -> list[dict]:
     res_mean = paired_strategy_test(
         costs_a=costs_opt, costs_b=costs_twap,
         label_a="AC", label_b="TWAP",
-        test="both", n_bootstrap=5_000, seed=SEED,
+        test="both", n_bootstrap=BOOTSTRAP_REPS, seed=SEED,
     )
 
     # Objective
     obj_ac, obj_twap_v, p_obj = paired_bootstrap_stat(
         costs_opt, costs_twap,
         stat_fn=lambda c: _objective_fn(c, lam=LAM),
-        n_bootstrap=5_000, seed=SEED + 1,
+        n_bootstrap=BOOTSTRAP_REPS, seed=SEED + 1,
     )
 
     # CVaR
     cvar_ac, cvar_twap_v, p_cvar = paired_bootstrap_stat(
         costs_opt, costs_twap,
         stat_fn=_cvar_95,
-        n_bootstrap=5_000, seed=SEED + 2,
+        n_bootstrap=BOOTSTRAP_REPS, seed=SEED + 2,
     )
 
     degen_note = ("AC optimal degenerate: kappa*T overflow (bang-bang limit). "

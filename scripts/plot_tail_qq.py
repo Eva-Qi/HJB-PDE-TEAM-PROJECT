@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 
 from extensions.heston import HestonParams
+from shared.experiment_config import T_1H, LAM, SEED
 from shared.params import ACParams
 from montecarlo.sde_engine import simulate_execution, simulate_heston_execution
 from montecarlo.strategies import twap_trajectory
@@ -43,17 +44,17 @@ def main():
         sigma=sigma_const,
         mu=0.0,
         X0=10.0,
-        T=1.0/(365.25*24),
+        T=T_1H,
         N=50,
         gamma=1.48,
         eta=1.58e-4,
         alpha=1.0,
-        lam=1e-6,
+        lam=LAM,
         fee_bps=0,
     )
 
     n_paths = 50000
-    seed = 42
+    seed = SEED
 
     # TWAP trajectory (same for both)
     trajectory = twap_trajectory(ac_params)

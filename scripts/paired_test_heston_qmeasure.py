@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 
+from shared.experiment_config import T_1H, LAM, SEED, N_STEPS, BOOTSTRAP_REPS
 from shared.params import ACParams
 from montecarlo.strategies import twap_trajectory
 from montecarlo.sde_engine import simulate_execution, simulate_heston_execution
@@ -36,9 +37,6 @@ from extensions.heston import HestonParams
 # Configuration
 # ---------------------------------------------------------------------------
 N_PATHS = 10_000
-SEED = 42
-BOOTSTRAP_REPS = 5_000
-LAM = 1e-6
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 PARAMS_JSON = DATA_DIR / "heston_pmeasure_vs_qmeasure.json"
@@ -55,8 +53,8 @@ def _make_base_params(sigma: float) -> ACParams:
         sigma=sigma,
         mu=0.0,
         X0=10.0,
-        T=1.0/(365.25*24),
-        N=250,
+        T=T_1H,
+        N=N_STEPS,
         gamma=1.48,
         eta=1.58e-4,
         alpha=1.0,
@@ -86,8 +84,8 @@ def paired_bootstrap_stat_test(
     costs_a: np.ndarray,
     costs_b: np.ndarray,
     stat_fn,
-    n_bootstrap: int = 5_000,
-    seed: int = 42,
+    n_bootstrap: int = BOOTSTRAP_REPS,
+    seed: int = SEED,
 ) -> tuple[float, float, float]:
     """Paired bootstrap test for a scalar population statistic.
 
@@ -433,7 +431,7 @@ def main() -> None:
     else:
         print("   NO — Q-measure also fails to reject H_0 on all metrics.")
         print("   This may indicate that the cost distribution is insensitive to")
-        print("   vol model choice at this execution horizon (T=1/24, N=50).")
+        print(f"   vol model choice at this execution horizon (T={T_1H:.2e} years, N={N_STEPS}).")
 
     print()
     print("2. Q-measure vs P-measure Heston: tail distribution difference")
