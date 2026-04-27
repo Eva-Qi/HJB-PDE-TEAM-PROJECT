@@ -55,6 +55,7 @@ from montecarlo.strategies import twap_trajectory
 from montecarlo.sde_engine import simulate_execution
 from pde.hjb_solver import solve_hjb, extract_optimal_trajectory
 from shared.cost_model import execution_cost
+from shared.experiment_config import T_1H, LAM, N_STEPS
 from shared.params import ACParams, almgren_chriss_closed_form
 
 
@@ -62,9 +63,7 @@ from shared.params import ACParams, almgren_chriss_closed_form
 DATA_DIR = PROJECT_ROOT / "data"
 N_PATHS  = 5000
 X0       = 10.0                       # BTC to liquidate
-T        = 1.0 / (365.25 * 24)        # 1-hour execution horizon (years)
-N_STEPS  = 250
-LAM      = 1e-6
+T        = T_1H                       # 1-hour execution horizon (years)
 
 # (label, train_start, train_end, test_start, test_end) — all inclusive
 SPLITS = [

@@ -33,6 +33,7 @@ from calibration.bookdepth_impact_estimator import (
 )
 from calibration.data_loader import compute_mid_prices, load_trades
 from extensions.regime import fit_hmm
+from shared.experiment_config import T_1H, N_STEPS
 
 
 # ─── Configuration (mirrors scripts/paired_test_regime_aware_v5.py) ──────
@@ -42,8 +43,7 @@ END = "2026-04-19"
 
 # Execution horizon / sizing (identical to V5 driver)
 X0 = 10.0
-T = 1.0/(365.25*24)    # 1-hour horizon in years
-N_STEPS = 250
+T = T_1H               # 1-hour horizon in years
 DT_YEARS = T / N_STEPS
 Q_PER_STEP = X0 / N_STEPS  # 0.2 BTC
 

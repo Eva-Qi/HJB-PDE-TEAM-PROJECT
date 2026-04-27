@@ -33,6 +33,7 @@ import matplotlib.pyplot as plt
 
 from shared.params import ACParams, almgren_chriss_closed_form
 from shared.cost_model import execution_cost, execution_risk, objective
+from shared.experiment_config import T_1H
 from montecarlo.strategies import twap_trajectory
 from pde.hjb_solver import solve_hjb, extract_optimal_trajectory
 
@@ -44,8 +45,6 @@ OUT_DIR.mkdir(exist_ok=True)
 
 # ── Calibrated baseline (from Binance BTCUSDT, report Table 1) ────
 #    eta is a literature fallback; alpha from order book depth walking.
-T_1HR = 1.0 / (365.25 * 24)  # 1 hour in years
-
 def find_lam_for_kappa_T(S0, sigma, eta, T, target_kT=1.5):
     """Compute lambda that gives kappa*T = target (linear impact)."""
     kappa_needed = target_kT / T
@@ -57,7 +56,7 @@ BASE_GAMMA = 1.48
 BASE_ETA   = 1.58e-4
 BASE_ALPHA = 1.0       # linear for closed-form; nonlinear sweeps use PDE
 BASE_X0    = 10.0
-BASE_T     = T_1HR
+BASE_T     = T_1H
 BASE_N     = 50
 BASE_LAM   = find_lam_for_kappa_T(BASE_S0, BASE_SIGMA, BASE_ETA, BASE_T, 1.5)
 
