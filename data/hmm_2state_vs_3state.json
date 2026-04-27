@@ -1,23 +1,35 @@
 {
+  "code_version": "post-bic-bug-fix-2026-04-26",
+  "fix_notes": "score(X) double-count bug fixed; duplicate-state \u03c3-ratio filter added (1.15 threshold).",
   "two_state": {
     "n_regimes": 2,
     "n_observations": 28223,
     "n_params": 7,
-    "log_likelihood": 4222073596.7945337,
-    "bic": -8444147121.85382,
+    "log_likelihood": 146071.06689126708,
+    "bic": -292070.39853484277,
+    "rejected_no_valid_fit": false,
+    "n_init": 15,
+    "n_converged": 15,
+    "n_rejected_occupancy": 0,
+    "n_rejected_duplicate": 0,
+    "min_sigma_ratio_observed": 3.262763058884642,
+    "duplicate_sigma_ratio_threshold": 1.15,
+    "best_model_min_state_frac": 0.10066258016511356,
+    "best_model_min_sigma_ratio": 3.3291677018707957,
+    "occupancy_collapsed": false,
     "collapsed": false,
     "regimes": [
       {
         "label": "risk_on",
-        "sigma_multiplier": 0.7036077257753593,
-        "state_vol": 0.0010102752998984276,
-        "probability": 0.9120929738156822
+        "sigma_multiplier": 0.6737064797047241,
+        "state_vol": 0.0011206107288641908,
+        "probability": 0.8928887786557064
       },
       {
         "label": "risk_off",
-        "sigma_multiplier": 2.4982397803183574,
-        "state_vol": 0.0035870981099561127,
-        "probability": 0.08790702618431775
+        "sigma_multiplier": 2.356679987835096,
+        "state_vol": 0.0039199873512052565,
+        "probability": 0.10711122134429366
       }
     ]
   },
@@ -25,32 +37,41 @@
     "n_regimes": 3,
     "n_observations": 28223,
     "n_params": 14,
-    "log_likelihood": 4224143099.5578585,
-    "bic": -8448286055.645222,
+    "log_likelihood": 146103.9263318648,
+    "bic": -292064.38216834684,
+    "rejected_no_valid_fit": false,
+    "n_init": 15,
+    "n_converged": 15,
+    "n_rejected_occupancy": 11,
+    "n_rejected_duplicate": 3,
+    "min_sigma_ratio_observed": 1.0045691369986138,
+    "duplicate_sigma_ratio_threshold": 1.15,
+    "best_model_min_state_frac": 0.022499379938348156,
+    "best_model_min_sigma_ratio": 1.236607109798259,
+    "occupancy_collapsed": true,
     "collapsed": true,
     "regimes": [
       {
         "label": "risk_on",
-        "sigma_multiplier": 0.760507768895296,
-        "state_vol": 0.001091975238687304,
-        "probability": 0.4726641391772668
+        "sigma_multiplier": 0.7260765092220335,
+        "state_vol": 0.0012077204995372482,
+        "probability": 0.4656485844878291
       },
       {
         "label": "neutral",
-        "sigma_multiplier": 0.7751640256800606,
-        "state_vol": 0.0011130194280504887,
-        "probability": 0.4728767317436134
+        "sigma_multiplier": 0.7362100487853033,
+        "state_vol": 0.0012245761384513149,
+        "probability": 0.4656485844878291
       },
       {
         "label": "risk_off",
-        "sigma_multiplier": 2.8512526805539937,
-        "state_vol": 0.004093971756433718,
-        "probability": 0.054459129079119865
+        "sigma_multiplier": 2.7041131067625224,
+        "state_vol": 0.004497890774077875,
+        "probability": 0.06870283102434185
       }
     ]
   },
-  "delta_bic_3_minus_2": -4138933.791401863,
-  "preferred_model": "3-state",
-  "preference_reason": "lower BIC (better fit adjusted for complexity)",
-  "three_state_collapse_note": "Best 3-state hmmlearn solution has a phantom state with <1% occupancy. 3-state HMM code is functional (confirmed on synthetic 3-regime data) but this BTCUSDT dataset does not exhibit a separable third regime."
+  "delta_bic_3_minus_2": 6.0163664959254675,
+  "preferred_model": "2-state",
+  "preference_reason": "lower BIC (simpler model, data does not support 3 states)"
 }

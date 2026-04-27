@@ -1,0 +1,76 @@
+{
+  "code_version": "vol-feature-2026-04-26",
+  "note": "\u03c3-ratio filter disabled (regimes separated by \u03bc on log_vol, not \u03c3)",
+  "vol_window_minutes": 30,
+  "two_state_log_vol": {
+    "n_regimes": 2,
+    "n_observations": 28218,
+    "n_params": 7,
+    "log_likelihood": -21374.0540859165,
+    "bic": 42819.84217929121,
+    "rejected_no_valid_fit": false,
+    "n_init": 15,
+    "n_converged": 15,
+    "n_rejected_occupancy": 2,
+    "n_rejected_duplicate": 0,
+    "min_sigma_ratio_observed": 1.0000048185652048,
+    "duplicate_sigma_ratio_threshold": 0.0,
+    "best_model_min_state_frac": 0.47537033099440074,
+    "best_model_min_sigma_ratio": 1.06622110313042,
+    "occupancy_collapsed": false,
+    "collapsed": false,
+    "regimes": [
+      {
+        "label": "risk_on",
+        "sigma_multiplier": 0.6358885259607057,
+        "state_vol": 0.4554823255015157,
+        "probability": 0.5246296690055993
+      },
+      {
+        "label": "risk_off",
+        "sigma_multiplier": 0.6749638031069146,
+        "state_vol": 0.48347166227604227,
+        "probability": 0.47537033099440074
+      }
+    ]
+  },
+  "three_state_log_vol": {
+    "n_regimes": 3,
+    "n_observations": 28218,
+    "n_params": 14,
+    "log_likelihood": -14874.668427600525,
+    "bic": 29892.804870117474,
+    "rejected_no_valid_fit": false,
+    "n_init": 15,
+    "n_converged": 15,
+    "n_rejected_occupancy": 1,
+    "n_rejected_duplicate": 0,
+    "min_sigma_ratio_observed": 1.0000000278200953,
+    "duplicate_sigma_ratio_threshold": 0.0,
+    "best_model_min_state_frac": 0.27347792189382664,
+    "best_model_min_sigma_ratio": 1.141487209874677,
+    "occupancy_collapsed": false,
+    "collapsed": false,
+    "regimes": [
+      {
+        "label": "risk_on",
+        "sigma_multiplier": 0.3538542632268063,
+        "state_vol": 0.2534632347071645,
+        "probability": 0.43369480473456656
+      },
+      {
+        "label": "neutral",
+        "sigma_multiplier": 0.5264329733170874,
+        "state_vol": 0.3770801093554587,
+        "probability": 0.27347792189382664
+      },
+      {
+        "label": "risk_off",
+        "sigma_multiplier": 0.5978391560871119,
+        "state_vol": 0.4282278386436057,
+        "probability": 0.2928272733716068
+      }
+    ]
+  },
+  "delta_bic_3_minus_2_log_vol": -12927.037309173738
+}
