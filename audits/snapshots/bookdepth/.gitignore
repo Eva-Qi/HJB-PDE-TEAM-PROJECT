@@ -1,0 +1,7 @@
+# Bookdepth raw data is preserved locally for the robustness paragraph
+# but NOT committed to git (63 MB, 56 files).
+# Original location: data/BTCUSDT-bookDepth-*.{csv,zip} — gitignored via data/.gitignore.
+# Moved here on 2026-04-27 per P1-2 coalescence (Worker C2).
+# See ../../README.md "Bookdepth archive" section.
+*.csv
+*.zip

@@ -128,3 +128,55 @@ Download scripts archived during Apr 27 cleanup. Data files they produced are ei
 | bookdepth_impact_estimator.py | (library — used by retired compute_eta_bookdepth_regime.py) |
 
 KEPT in `calibration/`: `data_loader.py`, `impact_estimator.py`, `download_deribit.py` (runtime dep), `download_binance.py` (CLI hint).
+
+---
+
+## Snapshots additions (2026-04-27 P1-2 coalescence)
+
+Added during the comprehensive cleanup pass per plan §D + §F1.
+
+### New result snapshots (14 files)
+- regime_conditional_impact_prefix.json (pre-fix snapshot)
+- orderbook_alpha_results.json (orderbook_alpha_estimation.py output, dead script)
+- paired_test_results.json (anonymous early run)
+- paired_regime_aware_v2_results.json (V2 superseded by V5)
+- paired_regime_multihorizon_hires.json (V3 superseded)
+- hmm_bivariate_coinmetrics_results.json (TIER45 NEGLECT)
+- hmm_feature_comparison.json (superseded by hmm_vol_feature)
+- heston_variants_comparison.json (audits/explorations/ output)
+- hmm_macro_vix_results.json (FINDINGS §5.4 rejected)
+- hmm_dvol_results.json (FINDINGS §5.4 rejected — but bookdepth retained for robustness)
+- paired_heston_vs_const_results.json (superseded by qmeasure)
+- paired_heston_multihorizon_hires.json
+- paired_regime_aware_results.json (V1 superseded by V5)
+- paired_ac_vs_twap_hires.json
+
+### ETH Tardis option snapshots (12 files, ~2.2 MB)
+- tardis_deribit_options_ETH_*.json — auxiliary cross-asset, not in BTC narrative
+
+### Coinmetrics version cascade (2 files)
+- coinmetrics_btc_onchain.json (v0)
+- coinmetrics_btc_extended_metrics.json (v1)
+- keep in `data/`: coinmetrics_btc_extended_metrics_v2.json (canonical, used by HMM)
+
+### Bookdepth archive (`bookdepth/` subdir, 56 files, ~63 MB — LOCAL ONLY)
+- BTCUSDT-bookDepth-*.{csv,zip} × 28 days
+- Preserved LOCALLY for "robustness paragraph" citation in final report
+- NOT committed to git (gitignored in `bookdepth/.gitignore`) — was originally gitignored under `data/*.csv,zip`; we kept that policy after the move so the 63 MB never enters git history
+- Final report claim: "We also computed eta directly from order-book depth on 28 days; result consistent with 1-min aggregated estimate (eta ~ 1.58e-4)"
+- If you cloned the repo and need this data, re-run the archived `audits/data_acquisition/download_binance_bookdepth.py`
+
+### Orphan data (10 files)
+- kraken_btc_daily.json, binance_btc_klines_4h.json, binance_btc_openinterest_daily.json
+- alpha_estimation_results.json, x0_sensitivity_results.json, walk_forward_results_slsqp.json
+- deribit_btc_historical_vol.json, deribit_btc_oi_summary.json, deribit_dvol_btc_daily.json, fred_macro_daily.json
+
+## Figures v1 (`figures_v1/`)
+
+Superseded figures retired during P1-2 cleanup.
+
+| File | Replaced by |
+|---|---|
+| heston_qmeasure_timeseries.png (Apr 20, 117KB) | figures/heston_qmeasure_time_series.png (Apr 25, 237KB) |
+| dvol_vs_rho_scatter.png | (no replacement — DVOL HMM experiment frozen) |
+
