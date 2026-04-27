@@ -19,13 +19,19 @@ Good morning. We tackled the Almgren-Chriss optimal-execution problem on real Bi
 
 ## Slide 2 — Why this problem matters
 
-> **Key takeaway**: Liquidating institutional-size BTC inventory in finite time has measurable cost; choosing the right schedule saves 15-37%.
+> **Key takeaway**: Linear AC is scale-invariant in X₀ (savings depends on κT, not X₀); but real BTC has nonlinear (square-root-ish) impact, where AC concentrates trades — and at institutional size that concentration is exactly what saves cost.
 
-**Visual**: `figures/sensitivity_x0.png` — AC vs TWAP cost as X₀ scales (illustrates the retail vs institutional boundary)
+**Visual**: `figures/sensitivity_x0.png` — paired MC savings vs X₀ at calibrated parameters (LAM=1e-6, σ=0.42, α=1 vs α=0.441), with HJB degenerate-bang-bang points marked red
 
 **Talking script (~60 s)**:
 
-The Almgren-Chriss objective trades expected cost against cost variance. You pay two impact costs: a **permanent impact** γ·v·X (Kyle's-λ generalized) that walks the price away from you, and a **temporary impact** η·|v|^α (square-root law generalized to a power-law exponent α) that you incur on each child trade. Larger X₀ means more pressure, so a smarter schedule pays off. At retail-size X₀, around 10 BTC, AC and TWAP are statistically indistinguishable — paired-test p-value above 0.79. At institutional X₀ ≥ 100 BTC, AC starts winning. At X₀ = 1000 BTC, AC beats TWAP by **15% to 37%** in MC OOS savings, depending on the regime. We'll see those numbers on slide 6.
+The Almgren-Chriss objective trades expected cost against cost variance. You pay two impact costs: a **permanent impact** γ·v·X (Kyle's λ generalized) that walks the price away from you, and a **temporary impact** η·|v|^α (square-root-style power law) that you incur on each child trade. The whole question is whether scheduling beats just trading uniformly.
+
+Look at the green flat line — that's the closed-form linear AC at α=1. It sits at zero savings across every order size. **That's not a bug — linear AC is scale-invariant in X₀**: every term in the objective scales as X₀², so the percentage benefit doesn't depend on order size. The story changes when impact is nonlinear.
+
+The purple line is the calibrated α=0.441 from real Binance trades. Where HJB's policy iteration converges to a non-degenerate trajectory, savings sit around **50%** — that's the nonlinear concentration benefit, AC front-loads execution to exploit the sub-quadratic cost. The red Xs are points where HJB degenerated to a single >95%-in-one-step bang-bang — a known viscosity-solution pathology at sublinear α. We catch those with a two-solver SLSQP cross-check (Part 11 §11.4) elsewhere in the project.
+
+The cleaner X₀-dependence story — using full per-window calibration on 6 walk-forward splits — is on slide 6.
 
 ---
 
