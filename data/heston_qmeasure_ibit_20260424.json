@@ -1,0 +1,36 @@
+{
+  "snapshot_date": "2026-04-24",
+  "source": "Bloomberg OMON IBIT US Equity",
+  "spot": 44.02,
+  "risk_free_rate": 0.0394,
+  "n_contracts_input": 150,
+  "n_contracts_after_otm_filter": 75,
+  "expiries": [
+    "15-May-26",
+    "29-May-26",
+    "18-Jun-26"
+  ],
+  "T_range_days": [
+    21,
+    55
+  ],
+  "heston_params": {
+    "kappa": 9.689191,
+    "theta": 0.304037,
+    "xi": 2.427274,
+    "rho": -0.375712,
+    "v0": 0.135616
+  },
+  "feller_lhs": 5.891747,
+  "feller_rhs": 5.891661,
+  "feller_satisfied": true,
+  "rmse_iv": 0.009404,
+  "boundary_hits": [
+    "kappa@upper(10.0)"
+  ],
+  "elapsed_sec": 232.49,
+  "code_version": "post-3-bug-fix-2026-04-24",
+  "caveats": [
+    "american_exercise_unadjusted"
+  ]
+}
