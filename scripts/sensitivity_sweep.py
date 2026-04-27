@@ -151,7 +151,7 @@ def sweep_x0():
     """
     from montecarlo.sde_engine import simulate_execution
 
-    x0_values = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10_000]
+    x0_values = [1, 2, 5, 10, 20, 50, 100, 200, 300, 500, 1000, 2000, 5000, 10_000, 20_000, 30_000]
     n_paths = 10_000
     seed = 42
 
