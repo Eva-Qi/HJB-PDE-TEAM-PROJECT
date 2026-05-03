@@ -244,6 +244,34 @@ The same implementation-shortfall cost computation is applied to both
 parametric and bootstrap paths; agreement between the two cost distributions
 validates the GBM assumption at execution-relevant horizons.
 
+\begin{table}[h]
+\centering
+\caption{Standard error of mean cost estimate (\$) across 20 independent
+trials, TWAP strategy, varying path count and RNG method.  Sobol QMC
+achieves $85\times$ lower standard error than pseudo-random at 8{,}192 paths.}
+\label{tab:variance-reduction}
+\begin{tabular}{r r r r}
+\hline
+$N_{\mathrm{paths}}$ & Pseudo-random & Sobol QMC & Antithetic \\
+\hline
+256    & 245{,}063  & 14{,}564 & 24{,}060  \\
+1{,}024  & 114{,}655  &  5{,}392 & 13{,}573  \\
+4{,}096  &  45{,}321  &  1{,}240 &  5{,}003  \\
+8{,}192  &  42{,}757  &    506   &  5{,}399  \\
+\hline
+\end{tabular}
+\end{table}
+ 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.75\textwidth]{figures/sobol_convergence.png}
+\caption{Convergence of mean cost standard error vs.\ number of paths
+(log--log scale).  Sobol QMC converges at approximately $O(1/N)$,
+outperforming the $O(1/\sqrt{N})$ rate of pseudo-random sampling.
+Antithetic variates provide intermediate improvement.}
+\label{fig:sobol}
+\end{figure}
+
 \subsection{Walk-forward out-of-sample validation}
 
 We evaluate the HJB-derived schedule on a six-split walk-forward design: each split calibrates \(\gamma,\eta,\alpha\) on a 28-day training window, then evaluates the schedule on the held-out 28-day test window via Monte Carlo. Inventory \(X_0=1000\) BTC, horizon \(T=1\) hour, risk aversion \(\lambda=10^{-6}\). Figure~\ref{fig:walkforward} shows MC and deterministic out-of-sample savings versus TWAP across all six splits.
@@ -482,6 +510,11 @@ Schied, A.\ (2010).
 Viterbi, A.~J.\ (1967).
 \newblock Error bounds for convolutional codes and an asymptotically optimum decoding algorithm.
 \newblock {\em IEEE Transactions on Information Theory}, 13(2):260--269.
+
+\bibitem[Lord et~al.(2010)]{lord2010comparison}
+Lord, R., Koekkoek, R., and Van~Dijk, D.\ (2010).
+\newblock A comparison of biased simulation schemes for stochastic volatility models.
+\newblock {\em Quantitative Finance}, 10(2):177--194.
 
 \end{thebibliography}
 
