@@ -172,9 +172,116 @@ by \citet{howard1960dynamic}'s policy iteration with implicit Crank--Nicolson di
 
 To verify that the HJB solution is the actual optimum and not a discretization artifact, we cross-check against an SLSQP-based discrete-trade-vector optimizer that minimizes Equation~\ref{eq:obj} directly over the 250-dimensional vector \(\bm{v}=(v_1,\ldots,v_{250})\). For deterministic Almgren--Chriss the two solvers agree to within \(1\%\) on every test we ran; the agreement is recorded in \texttt{data/walk\_forward\_results.json} and \texttt{data/walk\_forward\_results\_slsqp.json}. This is the two-solver cross-check pattern: when an alternative implementation produces the same numeric output, the result has independent verification beyond what any single-method audit can provide.
 
+Both the HJB and SLSQP trajectories were evaluated under identical Monte Carlo
+conditions: 8{,}192 Sobol quasi-random paths with common-random-number coupling.
+SLSQP serves as an independent cross-check of the HJB solution; both methods
+currently produce open-loop schedules optimized at $t=0$ and neither adapts to
+realized volatility mid-execution.  The principal advantage of the HJB
+formulation is extensibility: it produces the full value function $V(x,t)$,
+which is the natural starting point for a 2D $(t,x,v)$ feedback extension under
+stochastic volatility.  SLSQP, by contrast, would require reformulation as a
+stochastic program to incorporate mid-execution feedback---a substantially harder
+problem.  Additionally, SLSQP's gradient-based optimization is susceptible to
+local minima at sublinear $\alpha$, whereas Howard's policy iteration provides
+monotone convergence guarantees.  We verified that for $\alpha=1$ the PDE
+trajectory matches the closed-form $\sinh$ solution to within $0.5\%$ at 8{,}192
+Sobol paths; for the calibrated $\alpha=0.441$ the two solvers agree to within
+$1\%$ on every test we ran.
+
+\subsection{Monte Carlo engine and variance reduction}
+\label{sec:mc-engine}
+ 
+All strategy evaluations use a modular Monte Carlo engine
+(\texttt{montecarlo/sde\_engine.py}) that accepts any deterministic inventory
+trajectory and simulates execution cost across $N$ stochastic price paths.
+The engine supports three SDE discretization schemes: (i) exact log-normal
+stepping for GBM (zero discretization error in the price dynamics), (ii)
+Euler--Maruyama, and (iii) Milstein, which adds the It\^{o}--Taylor correction
+$\tfrac{1}{2}\sigma^{2}S_{k}(Z_{k}^{2}-1)\Delta t$ and improves strong
+convergence from $\mathcal{O}(\sqrt{\Delta t})$ to $\mathcal{O}(\Delta t)$.
+At $N=50$ time steps all three schemes agree to within $0.03\%$ relative error;
+the Milstein scheme becomes important for Heston simulation
+(Section~\ref{sec:heston}) where exact log-normal stepping is unavailable.
+ 
+Three variance-reduction techniques are implemented.
+\textbf{Sobol quasi-Monte Carlo} generates low-discrepancy sequences via
+\texttt{scipy.stats.qmc.Sobol} and transforms to standard normals via
+the inverse CDF.  At 8{,}192 paths, Sobol reduces the standard error of the
+mean cost estimate by a factor of $85\times$ versus pseudo-random
+(\$506 vs.\ \$42{,}757), enabling statistically significant detection of small
+strategy differences.
+\textbf{Antithetic variates} pair each path $Z$ with $-Z$, guaranteeing
+zero mean across pairs and reducing variance by exploiting the negative
+correlation.
+\textbf{Control variates} use TWAP cost as a control: both the target
+strategy and TWAP are simulated on identical paths (same $Z$), and the
+known analytical TWAP expected cost is used to debias the estimate via
+$C_{\mathrm{cv}} = C_{\mathrm{strat}} - \hat\beta\,(C_{\mathrm{twap}} -
+\mathbb{E}[C_{\mathrm{twap}}])$ with optimal $\hat\beta =
+\mathrm{Cov}(C_{\mathrm{strat}}, C_{\mathrm{twap}}) /
+\mathrm{Var}(C_{\mathrm{twap}})$.
+ 
+A decoupled architecture passes pre-generated normal increments
+(\texttt{Z\_extern}) into the simulator, allowing all variance-reduction
+methods to compose with all discretization schemes and all price models
+(GBM, Heston, bootstrap).
+ 
+For Heston stochastic-volatility paths (Section~\ref{sec:heston}), we
+jointly simulate the price and variance SDEs with correlated Brownian
+increments ($Z_{S}=W_{1}$, $Z_{v}=\rho W_{1}+\sqrt{1-\rho^{2}}W_{2}$)
+using Euler--Maruyama with the Full Truncation scheme of
+\citet{lord2010comparison}: $v_{k}^{+}=\max(v_{k},0)$ is used inside the
+drift and diffusion terms, but $v_{k+1}$ itself is allowed to evolve
+freely, minimizing discretization bias.  Under the calibrated parameters
+the Feller condition $2\kappa\theta>\xi^{2}$ is satisfied and fewer than
+$0.01\%$ of variance entries are negative.
+ 
+As a model-adequacy check, we also implement a block-bootstrap pipeline
+(\texttt{montecarlo/bootstrap.py}) that constructs synthetic price paths
+by resampling contiguous blocks of historical BTC five-minute log-returns
+with replacement, preserving the volatility clustering that BTC exhibits.
+The same implementation-shortfall cost computation is applied to both
+parametric and bootstrap paths; agreement between the two cost distributions
+validates the GBM assumption at execution-relevant horizons.
+
 \subsection{Walk-forward out-of-sample validation}
 
 We evaluate the HJB-derived schedule on a six-split walk-forward design: each split calibrates \(\gamma,\eta,\alpha\) on a 28-day training window, then evaluates the schedule on the held-out 28-day test window via Monte Carlo. Inventory \(X_0=1000\) BTC, horizon \(T=1\) hour, risk aversion \(\lambda=10^{-6}\). Figure~\ref{fig:walkforward} shows MC and deterministic out-of-sample savings versus TWAP across all six splits.
+
+\subsection{Statistical testing methodology}
+\label{sec:stat-testing}
+ 
+All strategy comparisons use a paired Monte Carlo design with
+common-random-number (CRN) coupling: every strategy under comparison is
+evaluated on identical Sobol-generated price paths, so the per-path cost
+difference $\Delta_{i} = C_{i}^{A} - C_{i}^{B}$ isolates the strategy
+effect from sampling noise.  We report three complementary statistics.
+\textbf{(1)~Paired $t$-tests} on $\{\Delta_{i}\}_{i=1}^{N}$, yielding
+$t$-statistics and parametric $p$-values; the enormous $t$-statistics
+($t>100$ in most comparisons) reflect the fact that the cost difference is
+nearly deterministic under CRN coupling.
+\textbf{(2)~Bootstrap confidence intervals} on the mean difference:
+5{,}000 resamples of $\{\Delta_{i}\}$ with replacement, percentile method,
+providing nonparametric CIs without distributional assumptions on the
+cost distribution.
+\textbf{(3)~Tail-risk CIs:} bootstrap confidence intervals on
+$\mathrm{VaR}_{95}$ and $\mathrm{CVaR}_{95}$ for each strategy individually,
+computed by resampling the per-strategy cost array and taking the 2.5th
+and 97.5th percentiles of the bootstrap distribution of each tail metric.
+ 
+For PDE--MC cross-validation, we feed the HJB-derived trajectory into
+the Monte Carlo engine and compare the MC mean cost against the
+deterministic expected-cost formula.  For $\alpha=1$, the MC mean agrees
+with the closed-form to within $0.5\%$ at 8{,}192 Sobol paths, confirming
+both implementations.  For the calibrated $\alpha=0.441$, a persistent
+$\sim\!2\times$ discrepancy between the deterministic formula and the MC
+mean was observed: MC converges stably to ${\sim}\$241\mathrm{K}$ while
+the formula gives ${\sim}\$489\mathrm{K}$.  The discrepancy does not
+shrink with additional paths (tested to 128{,}000) and is consistent
+across all three discretization schemes, ruling out MC noise.  We
+attribute it to a difference in how the deterministic
+\texttt{execution\_cost()} formula accumulates the permanent-impact sum
+under nonlinear temporary impact; investigation is ongoing.
 
 \begin{figure}[!htb]
 \centering
@@ -315,7 +422,7 @@ The methodological synthesis: explicit audits of numerical conventions, two-solv
 % ============================================================================
 \section*{Acknowledgments}
 
-We thank Professor [Name] and the MF796 teaching team for guidance throughout the term. AI assistance (Claude Sonnet, Claude Opus) was used in this project for: code review and audit-mechanism prompting; documentation and report drafting from internal living-results documents; figure-generation script writing. All quantitative results, calibrations, and statistical tests were produced by code in the project repository (\url{https://github.com/Eva-Qi/HJB-PDE-TEAM-PROJECT}); all final analytical claims and limitation acknowledgments are owned by the authors.
+We thank Professor Sorets and the MF796 teaching team for guidance throughout the term. AI assistance (Claude Sonnet, Claude Opus) was used in this project for: code review and audit-mechanism prompting; documentation and report drafting from internal living-results documents; figure-generation script writing. All quantitative results, calibrations, and statistical tests were produced by code in the project repository (\url{https://github.com/Eva-Qi/HJB-PDE-TEAM-PROJECT}); all final analytical claims and limitation acknowledgments are owned by the authors.
 
 % ============================================================================
 \bibliographystyle{plainnat}
